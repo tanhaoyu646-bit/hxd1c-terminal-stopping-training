@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no,interactive-widget=resizes-content">
+  <meta name="theme-color" content="#06131d">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23061925'/%3E%3Cpath d='M13 39h38M18 39V20h28v19M24 48l5-9m11 9-5-9' stroke='%2358d7ff' stroke-width='5' fill='none'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%23f0c457'/%3E%3Ccircle cx='39' cy='29' r='3' fill='%23f0c457'/%3E%3C/svg%3E">
+  <title>HXD1C 终到对标停车虚拟实训</title>
+  <link rel="stylesheet" href="./styles/terminal-stopping.css">
+</head>
+<body class="mobile-controls-enabled">
+  <main class="training-app" aria-label="HXD1C终到对标停车虚拟实训">
+    <section class="stage" id="stage">
+      <canvas id="route-scene" aria-label="终到站接车线路"></canvas>
+      <img id="cab-view" class="cab-view" src="./assets/archive-cabview/HXD1C_front.png" alt="HXD1C司机室">
+      <div id="cab-overlay" class="cab-overlay"></div>
+
+      <header class="toolbar">
+        <button type="button" id="callout" class="toolbar-button callout">呼唤确认</button>
+        <button type="button" id="progress-toggle" class="toolbar-button">过程记录 <b id="progress-count">0/10</b></button>
+        <button type="button" id="rules-toggle" class="toolbar-button">任务说明</button>
+        <button type="button" id="view-toggle" class="toolbar-button">视角</button>
+        <button type="button" id="data-toggle" class="toolbar-button">运行数据</button>
+        <button type="button" id="fullscreen" class="toolbar-button icon-button" aria-label="全屏">⛶</button>
+      </header>
+
+      <nav id="view-menu" class="view-menu" aria-label="驾驶视角">
+        <button data-view="front" class="active">前方</button><button data-view="left">左侧</button><button data-view="right">右侧</button><button data-view="rearLeft">左后</button><button data-view="rearRight">右后</button>
+      </nav>
+
+      <aside id="progress-panel" class="side-panel" aria-hidden="true">
+        <div class="panel-head"><strong>过程记录</strong><button data-close-panel aria-label="关闭">×</button></div>
+        <p id="progress-panel-note">训练模式显示参考速度带和纠偏提示。</p>
+        <ol id="progress-list"></ol>
+      </aside>
+
+      <aside id="rules-panel" class="side-panel rules-panel" aria-hidden="true">
+        <div class="panel-head"><strong>任务说明</strong><button data-close-panel aria-label="关闭">×</button></div>
+        <p><b>本工况：</b>平直站场、标准旅客列车、停车标距出站信号机 100 m。40-400-100-30 是本教学工况的经验基线，不代表所有线路。</p>
+        <ul>
+          <li>400 m 前牵引回零，接近 40 km/h 时实施约 50 kPa 初减压。</li>
+          <li>100 m 处校速，参考 30 km/h；需追加时应待排风停止，单次追加不超过初减量。</li>
+          <li>牵引列车使用自动制动停车；禁止用单阀、动力制动或惰行代替列车制动停车。</li>
+          <li>少量减压停车后，追加至减压 100 kPa 以上，单阀置全制动位。</li>
+          <li>停车误差 ±0.5 m 内不扣精度分，±2 m 内保留合格可能；安全红线直接判不合格。</li>
+        </ul>
+      </aside>
+
+      <aside id="data-panel" class="side-panel data-panel" aria-hidden="true">
+        <div class="panel-head"><strong>运行数据</strong><button data-close-panel aria-label="关闭">×</button></div>
+        <dl id="run-data"></dl>
+      </aside>
+
+      <section id="training-guide" class="training-guide" aria-live="polite">
+        <div><span>距标</span><b id="guide-remaining">720 m</b></div>
+        <div><span>参考</span><b id="guide-speed">40 km/h</b><small id="guide-band">37–43 km/h</small></div>
+        <p id="guide-hint">初减准备</p>
+      </section>
+
+      <div id="status-strip" class="status-strip" aria-live="polite">
+        <b id="mode-name">教学训练</b><span id="phase-name">进站确认</span><em id="status-message">监控正常</em>
+      </div>
+
+      <section id="mobile-controls" class="mobile-controls" aria-label="手机横屏操纵">
+        <button type="button" id="mobile-traction-zero"><b>牵引回零</b><span id="mobile-traction-state">1级</span></button>
+        <button type="button" id="mobile-auto-down"><b>自阀 −</b><span>减位</span></button>
+        <button type="button" id="mobile-auto-up"><b>自阀 ＋</b><span id="mobile-auto-state">运转位</span></button>
+        <button type="button" id="mobile-side-release"><b>单缓</b><span>切换</span></button>
+        <button type="button" id="mobile-independent-full"><b>单阀全制</b><span>停车后</span></button>
+        <button type="button" id="mobile-callout"><b>呼唤</b><span>确认</span></button>
+        <button type="button" id="mobile-lkj"><b>LKJ</b><span>放大</span></button>
+      </section>
+
+      <section id="lkj-dock" class="lkj-dock" aria-hidden="true">
+        <button type="button" class="lkj-close" data-lkj-close aria-label="关闭LKJ放大界面">×</button>
+        <div class="lkj-device">
+          <img src="./assets/lkj/native-states/main-blank.png" alt="LKJ2000监控装置">
+          <div class="lkj-screen"></div>
+          <div class="lkj-keypad"></div>
+        </div>
+      </section>
+
+      <section id="mode-picker" class="modal open">
+        <div class="picker-card">
+          <span class="eyebrow">HXD1C · 终到作业专项</span>
+          <h1>终到对标停车</h1>
+          <p>围绕“定点、定速、定量、定追加”完成一段制动精准停车。首版采用标准旅客列车和平直站场工况。</p>
+          <div class="mode-grid">
+            <button type="button" data-mode="training"><b>教学训练</b><span>显示 400 m、100 m、50 m 参照点，提供速度带与条件式纠偏提示。</span><em>进入训练</em></button>
+            <button type="button" data-mode="assessment"><b>独立考核</b><span>隐藏参考点和答案，只记录操作、速度曲线、停车误差及安全红线。</span><em>开始考核</em></button>
+          </div>
+          <small>独立项目：仅使用 <code>hxd1c-terminal-stopping-v1</code> 浏览器存储，不读取或写入其他训练项目。</small>
+        </div>
+      </section>
+
+      <section id="result-modal" class="modal" aria-hidden="true">
+        <div class="result-card">
+          <span class="eyebrow">本轮结束</span>
+          <h2 id="result-title">训练结果</h2>
+          <div class="result-score"><b id="result-score">0</b><span>分</span><em id="result-grade">—</em></div>
+          <p id="result-summary"></p>
+          <div id="result-categories" class="result-categories"></div>
+          <div id="result-curve" class="result-curve"></div>
+          <div class="result-actions"><button type="button" id="retry">再来一次</button><button type="button" id="choose-mode">选择模式</button></div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script type="module" src="./scripts/terminalStoppingApp.js"></script>
+</body>
+</html>
