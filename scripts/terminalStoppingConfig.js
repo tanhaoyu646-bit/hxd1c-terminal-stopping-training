@@ -8,26 +8,38 @@ export const SCENARIO = Object.freeze({
   shortTitle: '终到对标',
   initialSpeed: 42,
   initialTraction: 1,
-  startOffset: 26880,
+  startOffset: 28910,
   targetDistance: 720,
-  platformStart: 120,
-  platformEnd: 720,
+  platformStart: 464,
+  platformEnd: 774,
   brakingPoint: 320,
   checkPoint: 620,
   lowSpeedPoint: 670,
-  exitSignalDistance: 820,
+  exitSignalDistance: 1251,
   finishDistance: 742,
   baselineSpeed: 40,
   baselineReduction: 50,
   targetTolerance: 0.5,
   passTolerance: 2,
-  stationName: '教学终到站',
-  entrySignalName: '教学终到站进站信号机',
+  stationName: '大山铺',
+  entrySignalName: '大山铺站进站信号机',
   targetName: '旅客列车停车位置标',
-  routeLabel: '区间—教学终到站 Ⅰ 道',
+  routeLabel: '区间—大山铺站 Ⅰ 道',
+  sourcePlatform: {
+    shape: 'platform-300m-no-awning.s',
+    uid: 50695,
+    worldStart: 29373.7,
+    worldEnd: 29683.7,
+  },
+  routeWindow: {
+    start: 27900,
+    end: 30550,
+    lateral: 650,
+    redSignalDistance: 30161,
+  },
   signals: [
-    { id: 'entry', label: '进站信号机', distance: 60, aspect: 'double-yellow' },
-    { id: 'exit', label: '出站信号机', distance: 820, aspect: 'red' },
+    { id: 'entry', label: '进站信号机', distance: 87, aspect: 'green' },
+    { id: 'exit', label: '出站信号机', distance: 1251, aspect: 'red' },
   ],
   phases: [
     { id: 'confirm', start: 0, end: 200, label: '进站确认' },
@@ -68,8 +80,7 @@ export function phaseAt(distance, stopped = false) {
 }
 
 export function signalAt(distance) {
-  const exitRemaining = SCENARIO.exitSignalDistance - distance;
-  if (exitRemaining < 420) return SCENARIO.signals[1];
+  if (distance >= SCENARIO.platformStart - 100) return SCENARIO.signals[1];
   return SCENARIO.signals[0];
 }
 

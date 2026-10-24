@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { SCENARIO, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
 import { TerminalStoppingSimulation } from '../scripts/terminalStoppingSimulation.js';
 import { TerminalStoppingAssessment } from '../scripts/terminalStoppingAssessment.js';
@@ -87,4 +88,25 @@ test('动力制动或运行中使用单阀会被记录并扣分', () => {
   assert.ok(simulation.state.events.some((event) => event.type === 'electric-brake-use'));
   assert.ok(simulation.state.events.some((event) => event.type === 'independent-brake-moving'));
   assert.ok(result.categories.find((item) => item.name === '制动机操纵').score < 25);
+});
+
+test('停车标位于原大山铺站台有效范围内', () => {
+  const targetWorldDistance = SCENARIO.startOffset + SCENARIO.targetDistance;
+  assert.equal(SCENARIO.sourcePlatform.shape, 'platform-300m-no-awning.s');
+  assert.equal(SCENARIO.sourcePlatform.uid, 50695);
+  assert.ok(targetWorldDistance >= SCENARIO.sourcePlatform.worldStart);
+  assert.ok(targetWorldDistance <= SCENARIO.sourcePlatform.worldEnd);
+  assert.ok(SCENARIO.routeWindow.start < SCENARIO.startOffset);
+  assert.ok(SCENARIO.routeWindow.end > SCENARIO.exitSignalDistance + SCENARIO.startOffset);
+});
+
+test('终到场景包含原站台和移动端兼容的原地形资产', () => {
+  const scene = JSON.parse(readFileSync(new URL('../assets/msts-neiyi-corridor/neiyi-lookout-full-scene.json', import.meta.url), 'utf8'));
+  const terrain = JSON.parse(readFileSync(new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url), 'utf8'));
+  const platform = scene.instances.find((item) => item.uid === SCENARIO.sourcePlatform.uid);
+  assert.equal(platform?.shape, SCENARIO.sourcePlatform.shape);
+  assert.equal(terrain.summary.tileCount, 6);
+  assert.equal(terrain.summary.resolution, 129);
+  assert.equal(terrain.tiles.length, 6);
+  assert.ok(terrain.tiles.every((tile) => tile.resolution === 129 && tile.heights.length === 129 * 129));
 });

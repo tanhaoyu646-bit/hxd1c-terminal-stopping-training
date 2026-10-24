@@ -1,17 +1,9 @@
 import * as THREE from '../lib/three/three.module.js';
-import { MstsRouteScene } from './mstsRouteScene.js';
-
-const ASPECT_COLORS = Object.freeze({
-  green: ['#1cff65'],
-  'green-yellow': ['#1cff65', '#ffd640'],
-  'double-yellow': ['#ffd640', '#ffd640'],
-  yellow: ['#ffd640'],
-  red: ['#ff302a'],
-});
+import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-5';
 
 export class TerminalStoppingScene extends MstsRouteScene {
   constructor(canvas, scenario, mode = 'training') {
-    super(canvas, { profile: 'power-training' });
+    super(canvas, { profile: 'terminal-station', routeWindow: scenario.routeWindow });
     this.stoppingScenario = scenario;
     this.trainingMode = mode === 'training';
     this.startOffset = scenario.startOffset;
@@ -22,8 +14,6 @@ export class TerminalStoppingScene extends MstsRouteScene {
   async load() {
     await super.load();
     this.startOffset = this.stoppingScenario.startOffset;
-    this.buildSignals();
-    this.buildPlatform();
     this.buildStoppingMarker();
     this.buildDistanceAids();
     this.applyCamera();
@@ -50,94 +40,6 @@ export class TerminalStoppingScene extends MstsRouteScene {
     return texture;
   }
 
-  buildSignals() {
-    const glowMap = this.createSignalGlowTexture();
-    for (const config of this.stoppingScenario.signals) {
-      const root = new THREE.Group();
-      root.name = `TERMINAL_SIGNAL_${config.id}`;
-      const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(.11, .14, 6.2, 10),
-        new THREE.MeshStandardMaterial({ color: '#d8d8d1', roughness: .72 }),
-      );
-      pole.position.y = 3.1;
-      root.add(pole);
-      const head = new THREE.Mesh(
-        new THREE.BoxGeometry(.88, 2.55, .55),
-        new THREE.MeshStandardMaterial({ color: '#151b1c', roughness: .58 }),
-      );
-      head.position.set(0, 6.65, 0);
-      root.add(head);
-      const colors = ASPECT_COLORS[config.aspect] || ASPECT_COLORS.green;
-      for (let index = 0; index < 3; index += 1) {
-        const color = colors[index];
-        const lamp = new THREE.Sprite(new THREE.SpriteMaterial({
-          map: glowMap,
-          color: color || '#26302b',
-          transparent: true,
-          opacity: color ? 1 : .2,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          toneMapped: false,
-        }));
-        lamp.position.set(0, 7.4 - index * .74, -.34);
-        lamp.scale.set(.72, .72, 1);
-        root.add(lamp);
-      }
-      this.placeLookoutObject3D(root, this.stoppingScenario.startOffset + config.distance, 3.7, 0);
-      this.routeRoot.add(root);
-      this.stationObjects.push({ root, distance: config.distance, range: 2_000 });
-    }
-  }
-
-  buildPlatform() {
-    const scenario = this.stoppingScenario;
-    const concrete = new THREE.MeshStandardMaterial({ color: '#b8b7ad', roughness: .92 });
-    const edge = new THREE.MeshStandardMaterial({ color: '#eee5bd', roughness: .86 });
-    const canopyMaterial = new THREE.MeshStandardMaterial({ color: '#42738c', roughness: .62, metalness: .12 });
-    const columnMaterial = new THREE.MeshStandardMaterial({ color: '#d7dde0', roughness: .7, metalness: .16 });
-    const platformLength = scenario.platformEnd - scenario.platformStart;
-    const center = scenario.platformStart + platformLength / 2;
-    const root = new THREE.Group();
-    root.name = 'TERMINAL_PLATFORM';
-
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.05, platformLength), concrete);
-    deck.position.y = .38;
-    root.add(deck);
-    const warningEdge = new THREE.Mesh(new THREE.BoxGeometry(.34, .08, platformLength), edge);
-    warningEdge.position.set(-2.67, .94, 0);
-    root.add(warningEdge);
-
-    for (let z = -platformLength / 2 + 28; z < platformLength / 2 - 20; z += 42) {
-      const column = new THREE.Mesh(new THREE.CylinderGeometry(.1, .12, 4.6, 10), columnMaterial);
-      column.position.set(.35, 3.2, z);
-      root.add(column);
-      const canopy = new THREE.Mesh(new THREE.BoxGeometry(4.7, .16, 20), canopyMaterial);
-      canopy.position.set(.35, 5.5, z);
-      root.add(canopy);
-    }
-    this.placeLookoutObject3D(root, scenario.startOffset + center, 5.55, 0);
-    this.routeRoot.add(root);
-    this.stationObjects.push({ root, distance: center, range: 1_500 });
-
-    for (const offset of [70, 250, 430]) {
-      const boardRoot = new THREE.Group();
-      const board = new THREE.Mesh(
-        new THREE.PlaneGeometry(4.7, 1.35),
-        new THREE.MeshBasicMaterial({
-          map: this.makeTextTexture(scenario.stationName, { background: '#123a72', border: '#f4f6ef', color: '#fff', font: 'bold 62px "Microsoft YaHei", sans-serif' }),
-          side: THREE.DoubleSide,
-          toneMapped: false,
-        }),
-      );
-      board.position.y = 2.8;
-      board.rotation.y = Math.PI;
-      boardRoot.add(board);
-      this.placeLookoutObject3D(boardRoot, scenario.startOffset + scenario.platformStart + offset, 4.15, 0);
-      this.routeRoot.add(boardRoot);
-      this.stationObjects.push({ root: boardRoot, distance: scenario.platformStart + offset, range: 900 });
-    }
-  }
-
   buildStoppingMarker() {
     const scenario = this.stoppingScenario;
     const root = new THREE.Group();
@@ -159,7 +61,7 @@ export class TerminalStoppingScene extends MstsRouteScene {
     board.position.y = 2.75;
     board.rotation.y = Math.PI;
     root.add(board);
-    this.placeLookoutObject3D(root, scenario.startOffset + scenario.targetDistance, 4.2, 0);
+    this.placeLookoutObject3D(root, scenario.startOffset + scenario.targetDistance, -4.2, 0);
     this.routeRoot.add(root);
     this.stationObjects.push({ root, distance: scenario.targetDistance, range: 1_300 });
   }

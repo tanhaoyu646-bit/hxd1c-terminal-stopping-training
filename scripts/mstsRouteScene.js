@@ -9,6 +9,7 @@ const SOURCE_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-full-sc
 const ROUTE_PATH = new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path.json', import.meta.url).href;
 const TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-terrain.json', import.meta.url).href;
 const LOOKOUT_TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-terrain-native.json', import.meta.url).href;
+const TERMINAL_STATION_TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url).href;
 const LOOKOUT_PREFAB_PATH = new URL('../assets/msts-neiyi-corridor/lookout-source-prefabs.json', import.meta.url).href;
 const LOOKOUT_REPAIR_ASSET_PATH = new URL('../assets/msts-neiyi-corridor/lookout-repair-assets.json', import.meta.url).href;
 const TEXTURE_PATH = new URL('../assets/msts-neiyi-corridor/textures/', import.meta.url).href;
@@ -36,6 +37,13 @@ const LOOKOUT_ROUTE_RENDER_OPTIONS = Object.freeze({
   sourceDepartureSignal: true,
 });
 
+const TERMINAL_STATION_RENDER_OPTIONS = Object.freeze({
+  proceduralTrack: true,
+  railHighlights: false,
+  continuousRailHeads: true,
+  sourceDepartureSignal: false,
+});
+
 // 电分相考核使用独立、按教学里程布置的标志。原线路在同一走廊内还带有
 // 既有断电牌、禁止双弓牌、曲线牌和信号机，若同时渲染会造成重复和错序。
 const POWER_TRAINING_SUPPRESSED_SHAPES = /^(?:duan|jinzhi-shuanggong|quxianbiao|qiaoliangbiao)\.s$/i;
@@ -46,8 +54,12 @@ export class MstsRouteScene {
     this.profile = options.profile || 'departure';
     this.isLookout = this.profile === 'lookout';
     this.isPowerTraining = this.profile === 'power-training';
-    this.isCorridor = this.isLookout || this.isPowerTraining;
-    this.renderOptions = this.isCorridor ? LOOKOUT_ROUTE_RENDER_OPTIONS : DEFAULT_ROUTE_RENDER_OPTIONS;
+    this.isTerminalStation = this.profile === 'terminal-station';
+    this.isCorridor = this.isLookout || this.isPowerTraining || this.isTerminalStation;
+    this.routeWindow = options.routeWindow || null;
+    this.renderOptions = this.isTerminalStation
+      ? TERMINAL_STATION_RENDER_OPTIONS
+      : this.isCorridor ? LOOKOUT_ROUTE_RENDER_OPTIONS : DEFAULT_ROUTE_RENDER_OPTIONS;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     const coarse = matchMedia('(pointer: coarse)').matches;
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1.15 : 1.5));
@@ -121,7 +133,9 @@ export class MstsRouteScene {
       const requests = [
         fetch(SOURCE_PATH, { cache: 'no-store' }),
         fetch(ROUTE_PATH, { cache: 'no-store' }),
-        fetch(this.isCorridor ? LOOKOUT_TERRAIN_PATH : TERRAIN_PATH, { cache: 'no-store' }),
+        fetch(this.isTerminalStation
+          ? TERMINAL_STATION_TERRAIN_PATH
+          : this.isCorridor ? LOOKOUT_TERRAIN_PATH : TERRAIN_PATH, { cache: 'no-store' }),
       ];
       if (this.isCorridor) {
         requests.push(fetch(LOOKOUT_PREFAB_PATH, { cache: 'no-store' }));
@@ -243,7 +257,10 @@ export class MstsRouteScene {
       geometry.computeBoundingSphere();
       const mesh = new THREE.Mesh(geometry, material);
       mesh.name = `MSTS_TERRAIN_${tile.tileX}_${tile.tileZ}`;
-      mesh.frustumCulled = true;
+      // 原线地形使用 MSTS 的大坐标。浏览器在远离世界原点时偶尔会把
+      // 仍包围驾驶视点的 2 km 地形块误判到视锥外，表现为轨道和站台悬空。
+      // 当前专项只装载 6 块站场地形，关闭块级裁剪的成本可控且能稳定显示。
+      mesh.frustumCulled = false;
       root.add(mesh);
     }
     this.routeRoot.add(root);
@@ -254,10 +271,19 @@ export class MstsRouteScene {
   buildTerrainCorridorIndex() {
     const cellSize = 32;
     const outerWidth = 24;
-    const maximumDistance = Math.min(this.pathLength, LOOKOUT_TRAINING_CONFIG.finishDistance + 350);
+    const minimumDistance = this.isTerminalStation
+      ? Math.max(0, Number(this.routeWindow?.start) || 0)
+      : 0;
+    const maximumDistance = Math.min(
+      this.pathLength,
+      this.isTerminalStation
+        ? Number(this.routeWindow?.end) || this.pathLength
+        : LOOKOUT_TRAINING_CONFIG.finishDistance + 350,
+    );
     const cells = new Map();
     const segments = [];
     for (let index = 1; index < this.routePoints.length; index += 1) {
+      if (this.routeDistances[index] < minimumDistance) continue;
       if (this.routeDistances[index - 1] > maximumDistance) break;
       const a = this.routePoints[index - 1];
       const b = this.routePoints[index];
@@ -378,18 +404,31 @@ export class MstsRouteScene {
 
   buildRoute(data) {
     const instancesByShape = new Map();
+    const corridorStart = this.isTerminalStation
+      ? Math.max(0, Number(this.routeWindow?.start) || 0)
+      : 0;
+    const corridorEnd = this.isTerminalStation
+      ? Math.min(this.pathLength, Number(this.routeWindow?.end) || this.pathLength)
+      : LOOKOUT_TRAINING_CONFIG.finishDistance + 500;
+    const corridorLateral = this.isTerminalStation
+      ? Math.max(100, Number(this.routeWindow?.lateral) || 650)
+      : 450;
+    // A3 多线轨道构件的对象原点可偏离本务线约 5–10 m，但模型本体仍会
+    // 横跨本务线。终到专项扩大重复轨道净空带，避免其覆盖连续训练轨面。
+    const sourceTrackClearance = this.isTerminalStation ? 14 : 4.2;
     data.instances.forEach((instance) => {
       const projection = this.isCorridor
-        ? this.projectPointToPath(instance.position, LOOKOUT_TRAINING_CONFIG.finishDistance + 500)
+        ? this.projectPointToPath(instance.position, corridorEnd)
         : null;
       if (this.isCorridor) {
-        // 瞭望项目只保留0–6 km教学走廊及其周边可见场景，不把原线路
-        // 数十公里的远程实例一起提交给渲染器。
+        // 各专项只保留自己的教学走廊及周边可见场景，不把原线路
+        // 数十公里的远程实例一起提交给渲染器。终到专项使用实际站场里程窗口。
         if (!projection
-          || projection.alongDistance > LOOKOUT_TRAINING_CONFIG.finishDistance + 500
-          || projection.lateralDistance > 450) return;
+          || projection.alongDistance < corridorStart
+          || projection.alongDistance > corridorEnd
+          || projection.lateralDistance > corridorLateral) return;
         const tunnel = LOOKOUT_TRAINING_CONFIG.events.find((item) => item.visualKind === 'tunnel');
-        const insideTeachingTunnel = projection
+        const insideTeachingTunnel = this.isLookout && projection
           && projection.alongDistance >= tunnel.tunnelStartDistance - 4
           && projection.alongDistance <= tunnel.tunnelEndDistance + 4
           && Math.abs(projection.signedLateral) <= 12;
@@ -407,7 +446,7 @@ export class MstsRouteScene {
         // 原接触网杆的对象原点位于原轨道中心，真正的杆柱约在局部 +X 3 m。
         // 主线中心线重建后，少数杆柱会侵入新线路。按实际杆柱位置做净空判断，
         // 将侵线杆记录下来，稍后沿最终中心线原位重建，而不是只删掉造成断档。
-        if (/^SweGantry1\.s$/i.test(instance.shape || '')) {
+        if (this.isLookout && /^SweGantry1\.s$/i.test(instance.shape || '')) {
           const instancePosition = new THREE.Vector3().fromArray(instance.position);
           const instanceQuaternion = new THREE.Quaternion().fromArray(instance.quaternion).normalize();
           const mastPosition = new THREE.Vector3(3, 0, 0).applyQuaternion(instanceQuaternion).add(instancePosition);
@@ -423,16 +462,18 @@ export class MstsRouteScene {
       if (this.renderOptions.proceduralTrack && instance.type === 'TrackObj' && /^A\d+t/i.test(instance.shape || '')) {
         const trackProjection = projection || this.projectPointToPath(instance.position);
         if (trackProjection
-          && trackProjection.lateralDistance < 4.2
-          && trackProjection.alongDistance <= LOOKOUT_TRAINING_CONFIG.finishDistance + 500) return;
+          && trackProjection.lateralDistance < sourceTrackClearance
+          && trackProjection.alongDistance >= corridorStart
+          && trackProjection.alongDistance <= corridorEnd) return;
       }
       if (this.renderOptions.continuousRailHeads && instance.type === 'TrackObj' && /^A\d+t/i.test(instance.shape || '')) {
         const trackProjection = projection || this.projectPointToPath(instance.position);
         // 原分节主线轨道在 WebGL 中的接缝和交叠会造成假分岔；主线由
         // 同一中心线的实体钢轨头和连续轨枕承担，保留侧线和其他原轨道场景。
         if (trackProjection
-          && trackProjection.lateralDistance < 4.2
-          && trackProjection.alongDistance <= LOOKOUT_TRAINING_CONFIG.finishDistance + 500) return;
+          && trackProjection.lateralDistance < sourceTrackClearance
+          && trackProjection.alongDistance >= corridorStart
+          && trackProjection.alongDistance <= corridorEnd) return;
       }
       if (!instancesByShape.has(instance.shape)) instancesByShape.set(instance.shape, []);
       instancesByShape.get(instance.shape).push(instance);
@@ -1217,18 +1258,28 @@ export class MstsRouteScene {
     });
     const colors = { green: '#28e878', yellow: '#f6c744', red: '#e54a46' };
     const routeSignals = [];
+    const signalWindowStart = this.isTerminalStation ? Number(this.routeWindow?.start) || 0 : 0;
+    const signalWindowEnd = this.isTerminalStation
+      ? Number(this.routeWindow?.end) || this.pathLength
+      : LOOKOUT_TRAINING_CONFIG.finishDistance + 500;
     for (const instance of data.instances) {
       const definition = definitions[instance.shape];
       if (instance.type !== 'SignalObj' || !definition) continue;
       const projection = this.projectPointToPath(instance.position);
-      if (!projection || projection.alongDistance > LOOKOUT_TRAINING_CONFIG.finishDistance + 500) continue;
+      if (!projection
+        || projection.alongDistance < signalWindowStart
+        || projection.alongDistance > signalWindowEnd) continue;
       if (projection.lateralDistance > 8.5) continue;
       const overlapsDeparture = [this.departureSignal, this.neighborSignal].some((signal) => (
         signal && Math.abs(signal.projection.alongDistance - projection.alongDistance) < 1.5
       ));
       if (overlapsDeparture) continue;
 
-      const aspect = Math.abs(projection.signedLateral) <= 4.8 || !definition.red ? 'green' : 'red';
+      const terminalStopSignal = this.isTerminalStation
+        && Math.abs(projection.alongDistance - Number(this.routeWindow?.redSignalDistance)) < 24;
+      const aspect = terminalStopSignal
+        ? 'red'
+        : Math.abs(projection.signedLateral) <= 4.8 || !definition.red ? 'green' : 'red';
       const localPosition = definition[aspect] || definition.green;
       const root = new THREE.Group();
       root.name = `SOURCE_ROUTE_SIGNAL_LIGHT_${String(routeSignals.length + 1).padStart(2, '0')}`;
@@ -1262,6 +1313,10 @@ export class MstsRouteScene {
       routeSignals.push({ root, visual, glowSprites: [glow], projection, instance });
     }
     this.routeSignalLights = routeSignals;
+    if (this.isTerminalStation) {
+      this.throughSignal = null;
+      return;
+    }
     const throughTarget = LOOKOUT_TRAINING_CONFIG.continuityEndDistance + 350;
     this.throughSignal = routeSignals
       .filter((signal) => signal.instance.shape === 'jinzhan-yugao.s')

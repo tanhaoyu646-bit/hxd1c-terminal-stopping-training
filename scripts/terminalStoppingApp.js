@@ -1,7 +1,7 @@
 import { CAB, PROJECT_ID, SCENARIO } from './terminalStoppingConfig.js';
 import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js';
 import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js';
-import { TerminalStoppingScene } from './terminalStoppingScene.js';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-5';
 import { LkjRuntime } from './lkjRuntime.js';
 
 const $ = (selector) => document.querySelector(selector);
