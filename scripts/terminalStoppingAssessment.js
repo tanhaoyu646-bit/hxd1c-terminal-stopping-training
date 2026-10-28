@@ -1,4 +1,4 @@
-import { SCENARIO } from './terminalStoppingConfig.js';
+import { SCENARIO } from './terminalStoppingConfig.js?v=terminal-station-6';
 
 const between = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
 const clampScore = (value, maximum) => Math.max(0, Math.min(maximum, Math.round(value)));

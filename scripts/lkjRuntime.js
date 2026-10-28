@@ -1,4 +1,4 @@
-import { LKJ_KEYS } from './terminalStoppingConfig.js';
+import { LKJ_KEYS } from './terminalStoppingConfig.js?v=terminal-station-6';
 
 const pct = (value, total) => `${value / total * 100}%`;
 const fmt = (value, digits = 0) => Number(value || 0).toFixed(digits);

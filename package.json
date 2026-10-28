@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "serve": "python -m http.server 4193 --bind 127.0.0.1",
-    "check": "node --check scripts/mstsRouteScene.js && node --check scripts/terminalStoppingConfig.js && node --check scripts/terminalStoppingSimulation.js && node --check scripts/terminalStoppingAssessment.js && node --check scripts/terminalStoppingScene.js && node --check scripts/terminalStoppingApp.js && node --check scripts/lkjRuntime.js && node --test tools/*.test.mjs",
+    "check": "node --check scripts/mstsRouteScene.js && node --check scripts/terminalStoppingConfig.js && node --check scripts/terminalStoppingCandidate.js && node --check scripts/terminalStoppingSimulation.js && node --check scripts/terminalStoppingAssessment.js && node --check scripts/terminalStoppingScene.js && node --check scripts/terminalStoppingApp.js && node --check scripts/lkjRuntime.js && node --test tools/*.test.mjs",
     "test": "node --test tools/*.test.mjs"
   }
 }

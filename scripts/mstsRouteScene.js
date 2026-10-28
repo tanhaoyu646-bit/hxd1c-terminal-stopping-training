@@ -798,9 +798,9 @@ export class MstsRouteScene {
       texture: 'ACleanTrack2.png',
       alphaTestMode: 0,
     }).clone();
-    railBodyMaterial.color.set('#687277');
-    railBodyMaterial.metalness = 0.5;
-    railBodyMaterial.roughness = 0.42;
+    railBodyMaterial.color.set('#737c80');
+    railBodyMaterial.metalness = 0.28;
+    railBodyMaterial.roughness = 0.5;
     railBodyMaterial.fog = false;
     railBodyMaterial.name = 'LOOKOUT_RAIL_STEEL_BODY';
     const polishedMaterial = this.getMaterial({
@@ -808,13 +808,12 @@ export class MstsRouteScene {
       texture: 'ACleanTrack2.png',
       alphaTestMode: 0,
     }).clone();
-    // 原轨顶纹理提供细微明暗变化，灰钢色负责压住纹理中的浅色区域，
-    // 保持金属质感而不重新变成白色发光线。
-    polishedMaterial.color.set('#8b969a');
-    polishedMaterial.metalness = 0.9;
-    polishedMaterial.roughness = 0.18;
-    polishedMaterial.clearcoat = 0.72;
-    polishedMaterial.clearcoatRoughness = 0.12;
+    // 此场景没有环境贴图，金属度过高会把正常钢轨渲染成黑色。
+    polishedMaterial.color.set('#a9b2b5');
+    polishedMaterial.metalness = 0.42;
+    polishedMaterial.roughness = 0.28;
+    polishedMaterial.clearcoat = 0.35;
+    polishedMaterial.clearcoatRoughness = 0.22;
     polishedMaterial.emissive.set('#000000');
     polishedMaterial.emissiveIntensity = 0;
     polishedMaterial.fog = false;
@@ -895,125 +894,41 @@ export class MstsRouteScene {
       railRoot.add(rail);
     };
 
-    // 原尺寸 0.15 m 轨顶在桌面约 95 m、手机约 57 m 后就会小于一个像素。
-    // 远景 LOD 因此按实际视口动态提前接管，并用暗轨腰轮廓加灰钢轨顶的
-    // 双层结构保留原游戏的边缘对比；反光中断段不生成 LOD。
+    // 实体钢轨贯通全线。只在轨顶中心叠加 WebGL 原生 1 px 银灰线；
+    // 不再使用屏幕空间加宽三角带，避免近远景交界处鼓包、突出或合拢。
     const buildFarVisibilitySection = (railOffset, startDistance, endDistance, suffix) => {
       if (endDistance - startDistance < 1) return;
       const distances = [];
-      for (let distance = startDistance; distance < endDistance; distance += 8) distances.push(distance);
+      for (let distance = startDistance; distance < endDistance; distance += 4) distances.push(distance);
       distances.push(endDistance);
-      const centers = distances.map((distance) => {
-        const { point, right, up } = this.getLookoutPathFrame3D(distance);
-        return point.clone().addScaledVector(right, railOffset).addScaledVector(up, 0.334);
-      });
       const positions = [];
-      const previous = [];
-      const next = [];
-      const sides = [];
-      const indices = [];
-      centers.forEach((center, index) => {
-        const previousCenter = centers[Math.max(0, index - 1)];
-        const nextCenter = centers[Math.min(centers.length - 1, index + 1)];
-        for (const side of [-1, 1]) {
-          positions.push(center.x, center.y, center.z);
-          previous.push(previousCenter.x, previousCenter.y, previousCenter.z);
-          next.push(nextCenter.x, nextCenter.y, nextCenter.z);
-          sides.push(side);
-        }
-        if (index < centers.length - 1) {
-          const base = index * 2;
-          indices.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
-        }
+      distances.forEach((distance) => {
+        const { point, right, up } = this.getLookoutPathFrame3D(distance);
+        const center = point.clone().addScaledVector(right, railOffset).addScaledVector(up, 0.341);
+        positions.push(center.x, center.y, center.z);
       });
       const geometry = new THREE.BufferGeometry();
       geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setAttribute('previous', new THREE.Float32BufferAttribute(previous, 3));
-      geometry.setAttribute('next', new THREE.Float32BufferAttribute(next, 3));
-      geometry.setAttribute('side', new THREE.Float32BufferAttribute(sides, 1));
-      geometry.setIndex(indices);
       geometry.computeBoundingSphere();
-      const viewportWidth = Math.max(1, this.canvas.clientWidth);
-      const viewportHeight = Math.max(1, this.canvas.clientHeight);
-      const onePixelDistance = 0.15 * viewportHeight
-        / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-      const nearFadeStart = THREE.MathUtils.clamp(onePixelDistance * 0.65, 40, 90);
-      const nearFadeEnd = THREE.MathUtils.clamp(onePixelDistance * 1.55, 110, 180);
-      const layers = [
-        { id: 'SIDE', halfWidthPixels: 1.15, color: '#394246', opacity: 0.98, renderOrder: 5, polygonOffsetUnits: -2 },
-        { id: 'TOP', halfWidthPixels: 0.62, color: '#8b969a', opacity: 1, renderOrder: 6, polygonOffsetUnits: -5 },
-      ];
-      layers.forEach((layer) => {
-        const material = new THREE.ShaderMaterial({
-          name: `LOOKOUT_DISTANT_RAIL_${layer.id}_MATERIAL`,
-          uniforms: {
-            viewportSize: { value: new THREE.Vector2(viewportWidth, viewportHeight) },
-            halfWidthPixels: { value: layer.halfWidthPixels },
-            railColor: { value: new THREE.Color(layer.color) },
-            opacity: { value: layer.opacity },
-            nearFadeStart: { value: nearFadeStart },
-            nearFadeEnd: { value: nearFadeEnd },
-          },
-          vertexShader: `
-          uniform vec2 viewportSize;
-          uniform float halfWidthPixels;
-          attribute vec3 previous;
-          attribute vec3 next;
-          attribute float side;
-          varying float vViewDistance;
-          void main() {
-            vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-            vec4 currentClip = projectionMatrix * viewPosition;
-            vec4 previousClip = projectionMatrix * modelViewMatrix * vec4(previous, 1.0);
-            vec4 nextClip = projectionMatrix * modelViewMatrix * vec4(next, 1.0);
-            vec2 previousNdc = previousClip.xy / max(abs(previousClip.w), 0.0001);
-            vec2 nextNdc = nextClip.xy / max(abs(nextClip.w), 0.0001);
-            vec2 directionPixels = (nextNdc - previousNdc) * viewportSize;
-            vec2 normalPixels = length(directionPixels) > 0.0001
-              ? normalize(vec2(-directionPixels.y, directionPixels.x))
-              : vec2(1.0, 0.0);
-            vec2 offsetNdc = normalPixels * side * halfWidthPixels * 2.0 / viewportSize;
-            currentClip.xy += offsetNdc * currentClip.w;
-            gl_Position = currentClip;
-            vViewDistance = max(0.0, -viewPosition.z);
-          }
-        `,
-          fragmentShader: `
-          uniform vec3 railColor;
-          uniform float opacity;
-          uniform float nearFadeStart;
-          uniform float nearFadeEnd;
-          varying float vViewDistance;
-          void main() {
-            float nearAlpha = smoothstep(nearFadeStart, nearFadeEnd, vViewDistance);
-            float alpha = opacity * nearAlpha;
-            if (alpha < 0.01) discard;
-            gl_FragColor = vec4(railColor, alpha);
-          }
-        `,
-          transparent: true,
-          depthWrite: false,
-          depthTest: true,
-          polygonOffset: true,
-          polygonOffsetFactor: -1,
-          polygonOffsetUnits: layer.polygonOffsetUnits,
-          toneMapped: false,
-        });
-        this.railVisibilityMaterials.push(material);
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.name = `MAINLINE_RAIL_VISIBILITY_${layer.id}_${railOffset < 0 ? 'LEFT' : 'RIGHT'}_${suffix}`;
-        mesh.frustumCulled = false;
-        mesh.renderOrder = layer.renderOrder;
-        mesh.userData.layer = layer.id.toLowerCase();
-        mesh.userData.startDistance = startDistance;
-        mesh.userData.endDistance = endDistance;
-        farVisibilityRoot.add(mesh);
+      const material = new THREE.LineBasicMaterial({
+        color: '#a9b2b5', transparent: true, opacity: 0.86,
+        depthWrite: false, depthTest: true, fog: false, toneMapped: false,
       });
+      material.name = 'LOOKOUT_DISTANT_RAIL_METAL_LINE_MATERIAL';
+      this.railVisibilityMaterials.push(material);
+      const line = new THREE.Line(geometry, material);
+      line.name = `MAINLINE_RAIL_VISIBILITY_METAL_${railOffset < 0 ? 'LEFT' : 'RIGHT'}_${suffix}`;
+      line.frustumCulled = false;
+      line.renderOrder = 6;
+      line.userData.layer = 'metal-continuity';
+      line.userData.startDistance = startDistance;
+      line.userData.endDistance = endDistance;
+      farVisibilityRoot.add(line);
     };
 
     const farVisibilityRoot = new THREE.Group();
     farVisibilityRoot.name = 'LOOKOUT_MAINLINE_RAIL_VISIBILITY_LOD';
-    farVisibilityRoot.userData.source = 'screen-space LOD over complete 3D rail heads';
+    farVisibilityRoot.userData.source = 'native one-pixel metal continuity line over complete 3D rail heads';
     farVisibilityRoot.userData.startDistance = 0;
     farVisibilityRoot.userData.endDistance = maxDistance;
     farVisibilityRoot.userData.distanceLimited = false;
@@ -1251,7 +1166,8 @@ export class MstsRouteScene {
     // 灯位来自 NEIYI/sigcfg.dat；杆体、信号机头和姿态仍使用原游戏 SignalObj。
     const definitions = Object.freeze({
       'jinzhan-yugao.s': { green: [0, 5.543, 0], yellow: [0, 5.343, 0], radius: 0.14 },
-      'jinzhan.s': { green: [0, 5.343, 0.015], red: [0, 4.314, 0], radius: 0.14 },
+      // 灯位直接取自京广线路 sigcfg.dat 的 CHINAjinzhanLight。
+      'jinzhan.s': { green: [0, 5.026, 0], yellow: [0, 5.331, 0], red: [0, 4.113, 0], radius: 0.115 },
       'chuzhan-halfauto.s': { green: [0.01, 0.944, 0], red: [0.01, 0.742, 0], radius: 0.09 },
       'jinzhan-fushi.s': { green: [0.01, 0.762, 0], radius: 0.09 },
       'chuzhan-fushi.s': { green: [0.01, 0.762, 0], radius: 0.09 },
@@ -1277,8 +1193,11 @@ export class MstsRouteScene {
 
       const terminalStopSignal = this.isTerminalStation
         && Math.abs(projection.alongDistance - Number(this.routeWindow?.redSignalDistance)) < 24;
+      const terminalEntrySignal = this.isTerminalStation
+        && Math.abs(projection.alongDistance - Number(this.routeWindow?.entrySignalDistance)) < 24;
       const aspect = terminalStopSignal
         ? 'red'
+        : terminalEntrySignal && definition.yellow ? 'yellow'
         : Math.abs(projection.signedLateral) <= 4.8 || !definition.red ? 'green' : 'red';
       const localPosition = definition[aspect] || definition.green;
       const root = new THREE.Group();
@@ -1288,6 +1207,7 @@ export class MstsRouteScene {
       root.userData.sourceUid = instance.uid;
       root.userData.sourceShape = instance.shape;
       root.userData.alongDistance = projection.alongDistance;
+      root.userData.aspect = aspect;
       const visual = new THREE.Group();
       root.add(visual);
       const lamp = new THREE.Mesh(
@@ -1310,7 +1230,7 @@ export class MstsRouteScene {
       glow.renderOrder = 8;
       visual.add(glow);
       this.routeRoot.add(root);
-      routeSignals.push({ root, visual, glowSprites: [glow], projection, instance });
+      routeSignals.push({ root, visual, glowSprites: [glow], projection, instance, aspect });
     }
     this.routeSignalLights = routeSignals;
     if (this.isTerminalStation) {
@@ -1895,15 +1815,6 @@ export class MstsRouteScene {
     const width = Math.max(1, Math.round(rect.width));
     const height = Math.max(1, Math.round(rect.height));
     this.renderer.setSize(width, height, false);
-    const onePixelRailDistance = 0.15 * height
-      / (2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2));
-    const railFadeStart = THREE.MathUtils.clamp(onePixelRailDistance * 0.65, 40, 90);
-    const railFadeEnd = THREE.MathUtils.clamp(onePixelRailDistance * 1.55, 110, 180);
-    this.railVisibilityMaterials.forEach((material) => {
-      material.uniforms.viewportSize.value.set(width, height);
-      material.uniforms.nearFadeStart.value = railFadeStart;
-      material.uniforms.nearFadeEnd.value = railFadeEnd;
-    });
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
   }

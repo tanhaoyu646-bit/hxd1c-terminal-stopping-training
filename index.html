@@ -6,9 +6,23 @@
   <meta name="theme-color" content="#06131d">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23061925'/%3E%3Cpath d='M13 39h38M18 39V20h28v19M24 48l5-9m11 9-5-9' stroke='%2358d7ff' stroke-width='5' fill='none'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%23f0c457'/%3E%3Ccircle cx='39' cy='29' r='3' fill='%23f0c457'/%3E%3C/svg%3E">
   <title>HXD1C 终到对标停车虚拟实训</title>
-  <link rel="stylesheet" href="./styles/terminal-stopping.css">
+  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-6">
 </head>
-<body class="mobile-controls-enabled">
+<body class="mobile-controls-enabled candidate-entry-active">
+  <section id="candidate-gate" class="candidate-gate" aria-labelledby="candidate-title">
+    <form id="candidate-form" class="candidate-card" novalidate>
+      <span class="candidate-eyebrow">HXD1C · 终到作业专项</span>
+      <h1 id="candidate-title">终到对标停车虚拟实训</h1>
+      <p class="candidate-intro">请先填写本轮训练人员信息。姓名、学号仅保存在当前浏览器会话中，并显示在本轮成绩单内。</p>
+      <div class="candidate-fields">
+        <label>姓名<input id="candidate-name" name="name" type="text" maxlength="20" autocomplete="name" placeholder="请输入姓名" required></label>
+        <label>学号<input id="candidate-student-id" name="studentId" type="text" maxlength="20" autocomplete="off" placeholder="请输入学号" required></label>
+      </div>
+      <p id="candidate-error" class="candidate-error" role="alert" aria-live="polite"></p>
+      <button class="candidate-submit" type="submit">确认信息，选择训练模式</button>
+      <small>独立项目：不读取或写入其他训练项目的学员信息和成绩数据。</small>
+    </form>
+  </section>
   <main class="training-app" aria-label="HXD1C终到对标停车虚拟实训">
     <section class="stage" id="stage">
       <canvas id="route-scene" aria-label="终到站接车线路"></canvas>
@@ -36,13 +50,16 @@
 
       <aside id="rules-panel" class="side-panel rules-panel" aria-hidden="true">
         <div class="panel-head"><strong>任务说明</strong><button data-close-panel aria-label="关闭">×</button></div>
-        <p><b>本工况：</b>平直站场、标准旅客列车、停车标距出站信号机 100 m。40-400-100-30 是本教学工况的经验基线，不代表所有线路。</p>
+        <p><b>本工况：</b>平直站场、标准旅客列车、正线进站停车。进站信号显示一个黄灯，准许经道岔直向进入正线准备停车；出站信号显示红灯。40-400-100-30 是本教学工况的经验基线，不代表所有线路。</p>
         <ul>
-          <li>400 m 前牵引回零，接近 40 km/h 时实施约 50 kPa 初减压。</li>
+          <li>进入后先打开 LKJ，确认进站一个黄灯并呼唤；本工况距停车标约 720 m（进站信号机前约 87 m）时将牵引手柄回零。</li>
+          <li>距标 400 m、速度 37～43 km/h 时，自阀置初制位，实施约 50 kPa 初减压。</li>
+          <li>初减后 80 m 内操作单缓；全程不用动力制动，不在运行中使用单阀，不缓解自阀。</li>
           <li>100 m 处校速，参考 30 km/h；需追加时应待排风停止，单次追加不超过初减量。</li>
           <li>牵引列车使用自动制动停车；禁止用单阀、动力制动或惰行代替列车制动停车。</li>
           <li>少量减压停车后，追加至减压 100 kPa 以上，单阀置全制动位。</li>
-          <li>停车误差 ±0.5 m 内不扣精度分，±2 m 内保留合格可能；安全红线直接判不合格。</li>
+          <li><b>满分条件：</b>400 m 断面 37～43 km/h、100 m 断面 27～32 km/h、50 m 断面 14～24 km/h，停车误差不超过 ±0.5 m，最大减速度不超过 0.7 m/s²，并完成上述防溜操作。</li>
+          <li>停车误差 ±2 m 内保留合格可能；越标 10 m 以上、停车标后仍以 3 km/h 以上运行、触发 LKJ 常用/紧急制动、运行中换向或停车后再次加载均为安全红线。</li>
         </ul>
       </aside>
 
@@ -52,7 +69,7 @@
       </aside>
 
       <section id="training-guide" class="training-guide" aria-live="polite">
-        <div><span>距标</span><b id="guide-remaining">720 m</b></div>
+        <div><span>距标</span><b id="guide-remaining">980 m</b></div>
         <div><span>参考</span><b id="guide-speed">40 km/h</b><small id="guide-band">37–43 km/h</small></div>
         <p id="guide-hint">初减准备</p>
       </section>
@@ -97,15 +114,21 @@
         <div class="result-card">
           <span class="eyebrow">本轮结束</span>
           <h2 id="result-title">训练结果</h2>
+          <div class="result-candidate">
+            <span>姓名 <b id="result-name">—</b></span>
+            <span>学号 <b id="result-student-id">—</b></span>
+            <span>开始时间 <b id="result-started-at">—</b></span>
+            <span>完成时间 <b id="result-finished-at">—</b></span>
+          </div>
           <div class="result-score"><b id="result-score">0</b><span>分</span><em id="result-grade">—</em></div>
           <p id="result-summary"></p>
           <div id="result-categories" class="result-categories"></div>
           <div id="result-curve" class="result-curve"></div>
-          <div class="result-actions"><button type="button" id="retry">再来一次</button><button type="button" id="choose-mode">选择模式</button></div>
+          <div class="result-actions"><button type="button" id="retry">再来一次</button><button type="button" id="choose-mode">选择模式</button><button type="button" id="change-candidate">更换学员</button></div>
         </div>
       </section>
     </section>
   </main>
-  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-5"></script>
+  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-7"></script>
 </body>
 </html>

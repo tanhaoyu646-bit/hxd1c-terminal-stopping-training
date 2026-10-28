@@ -6,7 +6,7 @@ import {
   remainingToTarget,
   signalAt,
   trainingBand,
-} from './terminalStoppingConfig.js';
+} from './terminalStoppingConfig.js?v=terminal-station-6';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -289,7 +289,12 @@ export class TerminalStoppingSimulation extends EventTarget {
     if (s.stopped) return 600 - s.trainPipe < 95 || s.independentBrake < 5
       ? '停车后：自阀追加至减压 100 kPa 以上，单阀置全制动位'
       : '停车防溜完成';
-    if (remaining > 400) return '初减准备：牵引回零，确认 LKJ 与信号，控制 38–42 km/h';
+    if (remaining > SCENARIO.targetDistance - SCENARIO.tractionZeroPoint) {
+      return '进站确认：查看 LKJ、确认进站黄灯并呼唤，距标约 720 m 前准备牵引回零';
+    }
+    if (remaining > 400) return s.traction === 0
+      ? '牵引已回零：保持瞭望，控制 38–42 km/h，准备 400 m 初减'
+      : '已到牵引回零点：立即将牵引手柄回零';
     if (!hasInitialBrake) return '已进入初减区：立即实施约 50 kPa 初减压，不要继续等待';
     if (remaining > 100) return `保持初减并观察减速，当前参考 ${s.targetBand.minimum.toFixed(0)}–${s.targetBand.maximum.toFixed(0)} km/h`;
     if (remaining > 50) return s.speed > 31

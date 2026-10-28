@@ -1,8 +1,16 @@
-import { CAB, PROJECT_ID, SCENARIO } from './terminalStoppingConfig.js';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-5';
-import { LkjRuntime } from './lkjRuntime.js';
+import { CAB, PROJECT_ID, SCENARIO } from './terminalStoppingConfig.js?v=terminal-station-6';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-6';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-6';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-6';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-6';
+import {
+  clearCandidateDraft,
+  createCandidateAttempt,
+  formatAttemptTime,
+  loadCandidateDraft,
+  saveCandidateDraft,
+  validateCandidate,
+} from './terminalStoppingCandidate.js?v=terminal-station-6';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -20,6 +28,8 @@ let resultShown = false;
 let activeDrag = null;
 let audioContext = null;
 let lastAlertLevel = 'normal';
+let currentCandidate = loadCandidateDraft();
+let currentAttempt = null;
 const overlay = $('#cab-overlay');
 const elements = {};
 
@@ -118,6 +128,13 @@ window.addEventListener('pointerup', (event) => { if (activeDrag?.pointerId === 
 window.addEventListener('pointercancel', () => { activeDrag = null; });
 
 function chooseMode(mode) {
+  const validation = validateCandidate(currentCandidate);
+  if (!validation.valid) {
+    openCandidateGate();
+    return;
+  }
+  currentCandidate = validation.candidate;
+  currentAttempt = createCandidateAttempt(currentCandidate);
   simulation = new TerminalStoppingSimulation(mode);
   assessment = new TerminalStoppingAssessment(simulation);
   lkj.simulation = simulation;
@@ -219,6 +236,10 @@ function showResult() {
   if (resultShown) return;
   resultShown = true;
   const result = assessment.result();
+  $('#result-name').textContent = currentAttempt?.name || '—';
+  $('#result-student-id').textContent = currentAttempt?.studentId || '—';
+  $('#result-started-at').textContent = formatAttemptTime(currentAttempt?.startedAt);
+  $('#result-finished-at').textContent = formatAttemptTime(new Date());
   $('#result-score').textContent = result.score;
   $('#result-grade').textContent = result.summary;
   $('.result-score').classList.toggle('fail', !result.qualified);
@@ -278,7 +299,45 @@ function changeAuto(delta) {
   simulation.command('auto-brake', clamp(simulation.state.autoBrake + delta, 0, 5));
 }
 
+function openCandidateGate(clear = false) {
+  if (clear) {
+    clearCandidateDraft();
+    currentCandidate = { name: '', studentId: '' };
+  }
+  $('#candidate-name').value = currentCandidate.name || '';
+  $('#candidate-student-id').value = currentCandidate.studentId || '';
+  $('#candidate-error').textContent = '';
+  $('#candidate-name').removeAttribute('aria-invalid');
+  $('#candidate-student-id').removeAttribute('aria-invalid');
+  $('#candidate-gate').hidden = false;
+  document.body.classList.add('candidate-entry-active');
+  requestAnimationFrame(() => $('#candidate-name').focus());
+}
+
+function closeCandidateGate() {
+  $('#candidate-gate').hidden = true;
+  document.body.classList.remove('candidate-entry-active');
+}
+
 createCabControls();
+$('#candidate-name').value = currentCandidate.name;
+$('#candidate-student-id').value = currentCandidate.studentId;
+$('#candidate-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const validation = validateCandidate({
+    name: $('#candidate-name').value,
+    studentId: $('#candidate-student-id').value,
+  });
+  $('#candidate-name').toggleAttribute('aria-invalid', !validation.valid && validation.field === 'name');
+  $('#candidate-student-id').toggleAttribute('aria-invalid', !validation.valid && validation.field === 'studentId');
+  $('#candidate-error').textContent = validation.message;
+  if (!validation.valid) {
+    $(`#candidate-${validation.field === 'studentId' ? 'student-id' : 'name'}`).focus();
+    return;
+  }
+  currentCandidate = saveCandidateDraft(validation.candidate);
+  closeCandidateGate();
+});
 document.querySelectorAll('[data-mode]').forEach((button) => button.addEventListener('click', () => chooseMode(button.dataset.mode)));
 $('#callout').addEventListener('click', () => simulation.command('callout'));
 $('#progress-toggle').addEventListener('click', () => togglePanel($('#progress-panel')));
@@ -292,6 +351,11 @@ $('#fullscreen').addEventListener('click', async () => {
 });
 $('#retry').addEventListener('click', () => chooseMode(simulation.state.mode));
 $('#choose-mode').addEventListener('click', () => { $('#result-modal').classList.remove('open'); $('#mode-picker').classList.add('open'); });
+$('#change-candidate').addEventListener('click', () => {
+  $('#result-modal').classList.remove('open');
+  $('#mode-picker').classList.add('open');
+  openCandidateGate(true);
+});
 $('#mobile-traction-zero').addEventListener('click', () => simulation.command('traction', 0));
 $('#mobile-auto-down').addEventListener('click', () => changeAuto(-1));
 $('#mobile-auto-up').addEventListener('click', () => changeAuto(1));
@@ -300,6 +364,7 @@ $('#mobile-independent-full').addEventListener('click', () => simulation.command
 $('#mobile-callout').addEventListener('click', () => simulation.command('callout'));
 $('#mobile-lkj').addEventListener('click', () => lkj.show());
 window.addEventListener('keydown', (event) => {
+  if (!$('#candidate-gate').hidden || $('#mode-picker').classList.contains('open')) return;
   if (event.key === 'Escape') {
     document.querySelectorAll('.side-panel').forEach((panel) => panel.classList.remove('open'));
     $('#view-menu').classList.remove('open');
@@ -310,6 +375,12 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'ArrowDown') changeAuto(-1);
 });
 
-window.__terminalStopping = { get simulation() { return simulation; }, get assessment() { return assessment; }, chooseMode };
+window.__terminalStopping = {
+  get simulation() { return simulation; },
+  get assessment() { return assessment; },
+  get routeScene() { return routeScene; },
+  get candidate() { return currentAttempt; },
+  chooseMode,
+};
 render();
 requestAnimationFrame(animationFrame);

@@ -4,18 +4,28 @@ import { readFileSync } from 'node:fs';
 import { SCENARIO, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
 import { TerminalStoppingSimulation } from '../scripts/terminalStoppingSimulation.js';
 import { TerminalStoppingAssessment } from '../scripts/terminalStoppingAssessment.js';
+import {
+  createCandidateAttempt,
+  loadCandidateDraft,
+  saveCandidateDraft,
+  validateCandidate,
+} from '../scripts/terminalStoppingCandidate.js';
 
 function runStandard(mode = 'assessment') {
   const simulation = new TerminalStoppingSimulation(mode);
   simulation.start();
   simulation.command('lkj-open');
   simulation.command('callout');
-  simulation.command('traction', 0);
+  let tractionZero = false;
   let initialBrake = false;
   let addition = false;
   let secured = false;
   for (let index = 0; index < 40_000 && !simulation.state.completed; index += 1) {
     const state = simulation.state;
+    if (state.distance >= SCENARIO.tractionZeroPoint && !tractionZero) {
+      simulation.command('traction', 0);
+      tractionZero = true;
+    }
     if (state.distance >= SCENARIO.brakingPoint && !initialBrake) {
       simulation.command('auto-brake', 1);
       simulation.command('side-release', true);
@@ -43,6 +53,28 @@ test('教学基线包含40-400-100-30和50米低速观察点', () => {
   assert.equal(targetCurveSpeed(100), 30);
   assert.equal(targetCurveSpeed(50), 20);
   assert.deepEqual(trainingBand(100), { target: 30, minimum: 27.5, maximum: 32.5 });
+});
+
+test('正线进站停车使用黄灯且初始位置与进站信号保持足够距离', () => {
+  const entry = SCENARIO.signals.find((signal) => signal.id === 'entry');
+  assert.equal(entry.aspect, 'yellow');
+  assert.ok(entry.distance >= 300);
+  assert.equal(SCENARIO.startOffset + entry.distance, SCENARIO.routeWindow.entrySignalDistance);
+  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 29630);
+});
+
+test('学员姓名学号校验并仅写入指定会话存储', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+  };
+  assert.equal(validateCandidate({ name: '张三', studentId: '20260001' }).valid, true);
+  assert.equal(validateCandidate({ name: '张三1', studentId: '20260001' }).valid, false);
+  saveCandidateDraft({ name: ' 张三 ', studentId: '20260001' }, storage);
+  assert.deepEqual(loadCandidateDraft(storage), { name: '张三', studentId: '20260001' });
+  const attempt = createCandidateAttempt({ name: '张三', studentId: '20260001' }, new Date('2026-10-28T00:00:00Z'));
+  assert.equal(attempt.startedAt, '2026-10-28T00:00:00.000Z');
 });
 
 test('训练与考核状态完全隔离', () => {
@@ -109,4 +141,12 @@ test('终到场景包含原站台和移动端兼容的原地形资产', () => {
   assert.equal(terrain.summary.resolution, 129);
   assert.equal(terrain.tiles.length, 6);
   assert.ok(terrain.tiles.every((tile) => tile.resolution === 129 && tile.heights.length === 129 * 129));
+});
+
+test('远景钢轨使用原生线段而非会产生鼓包的屏幕空间三角带', () => {
+  const source = readFileSync(new URL('../scripts/mstsRouteScene.js', import.meta.url), 'utf8');
+  assert.match(source, /new THREE\.Line\(geometry, material\)/);
+  assert.doesNotMatch(source, /halfWidthPixels/);
+  assert.match(source, /entrySignalDistance/);
+  assert.match(source, /terminalEntrySignal && definition\.yellow \? 'yellow'/);
 });
