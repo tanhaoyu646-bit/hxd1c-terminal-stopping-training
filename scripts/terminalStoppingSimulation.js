@@ -6,7 +6,7 @@ import {
   remainingToTarget,
   signalAt,
   trainingBand,
-} from './terminalStoppingConfig.js?v=terminal-station-6';
+} from './terminalStoppingConfig.js?v=terminal-station-7';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -104,8 +104,12 @@ export class TerminalStoppingSimulation extends EventTarget {
     } else if (type === 'side-release') {
       s.sideRelease = Boolean(value);
     } else if (type === 'direction') {
-      if (s.speed > 1) this.log('direction-while-moving', { value });
-      s.direction = value;
+      if (s.speed > 1 || s.traction !== 0) {
+        this.log('direction-while-moving', { value, blocked: true });
+        this.emitChange();
+        return false;
+      }
+      s.direction = ['F', 'N', 'R'].includes(value) ? value : s.direction;
     } else if (type === 'callout') {
       s.calloutCount += 1;
       this.log('callout', { signal: s.signal.id, aspect: s.signal.aspect });

@@ -1,8 +1,8 @@
-import { CAB, PROJECT_ID, SCENARIO } from './terminalStoppingConfig.js?v=terminal-station-6';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-6';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-6';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-6';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-6';
+import { CAB, PROJECT_ID, SCENARIO } from './terminalStoppingConfig.js?v=terminal-station-7';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-7';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-7';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-7';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-7';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -10,13 +10,15 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-6';
+} from './terminalStoppingCandidate.js?v=terminal-station-7';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const views = { front: 'HXD1C_front.png', left: 'HXD1C_left_full.png', right: 'HXD1C_right_full.png', rearLeft: 'HXD1C_left.png', rearRight: 'HXD1C_right.png' };
 const brakeNames = ['运转位', '初制位', '常用Ⅱ', '常用Ⅲ', '常用Ⅳ', '紧急位'];
+const autoBrakeFrames = [0, 1, 2, 9, 10, 11];
+const signalFrames = { green: 7, greenYellow: 6, yellow: 5, red: 0 };
 
 let simulation = new TerminalStoppingSimulation('training');
 let assessment = new TerminalStoppingAssessment(simulation);
@@ -26,12 +28,23 @@ let selectedView = 'front';
 let lastFrame = performance.now();
 let resultShown = false;
 let activeDrag = null;
+let suppressControlClickUntil = 0;
+let routeLoadStartedAt = 0;
 let audioContext = null;
 let lastAlertLevel = 'normal';
 let currentCandidate = loadCandidateDraft();
 let currentAttempt = null;
 const overlay = $('#cab-overlay');
 const elements = {};
+
+function syncVisualViewport() {
+  const viewport = window.visualViewport;
+  document.documentElement.style.setProperty('--visual-height', `${Math.round(viewport?.height || window.innerHeight)}px`);
+  document.documentElement.style.setProperty('--visual-offset-top', `${Math.round(viewport?.offsetTop || 0)}px`);
+}
+syncVisualViewport();
+window.visualViewport?.addEventListener('resize', syncVisualViewport);
+window.visualViewport?.addEventListener('scroll', syncVisualViewport);
 
 function makeSprite(id, image, x, y, width, height, columns, rows, label) {
   const element = document.createElement('div');
@@ -66,6 +79,54 @@ function makePhysical(label, x, y, width, height, handler, className = '') {
   return element;
 }
 
+function makeTouchTarget(id, x, y, width, height, label, handler) {
+  const element = document.createElement('button');
+  element.type = 'button';
+  element.className = `touch-target ${id}-touch-target`;
+  element.setAttribute('aria-label', label);
+  Object.assign(element.style, {
+    left: pct(x, CAB.width), top: pct(y, CAB.height), width: pct(width, CAB.width), height: pct(height, CAB.height),
+  });
+  element.addEventListener('pointerdown', handler);
+  overlay.append(element);
+  return element;
+}
+
+function makeNeedle(id, image, x, y, width, height, pivot, start, end) {
+  const element = document.createElement('img');
+  element.className = 'original-game-needle';
+  element.src = `./assets/archive-cabview/${image}`;
+  element.alt = '';
+  element.setAttribute('aria-hidden', 'true');
+  element.dataset.start = start;
+  element.dataset.end = end;
+  Object.assign(element.style, {
+    left: pct(x, CAB.width), top: pct(y, CAB.height), width: pct(width, CAB.width), height: pct(height, CAB.height),
+    transformOrigin: `50% ${pivot / height * 100}%`,
+  });
+  overlay.append(element);
+  elements[id] = element;
+  return element;
+}
+
+function makeStateSprite(id, image, x, y, width, height, columns, rows) {
+  const element = document.createElement('div');
+  element.className = `state-sprite ${id}`;
+  Object.assign(element.style, {
+    left: pct(x, CAB.width), top: pct(y, CAB.height), width: pct(width, CAB.width), height: pct(height, CAB.height),
+    backgroundImage: `url("./assets/archive-cabview/${image}")`, backgroundSize: `${columns * 100}% ${rows * 100}%`,
+  });
+  overlay.append(element);
+  elements[id] = element;
+  return element;
+}
+
+function setNeedle(element, value, maximum) {
+  if (!element) return;
+  const ratio = clamp(Number(value) / maximum, 0, 1);
+  element.style.transform = `rotate(${Number(element.dataset.start) + (Number(element.dataset.end) - Number(element.dataset.start)) * ratio}deg)`;
+}
+
 function frame(element, index, columns, rows) {
   const column = index % columns;
   const row = Math.floor(index / columns);
@@ -78,56 +139,127 @@ function tractionFrame(value) {
 
 function createCabControls() {
   overlay.replaceChildren();
-  elements.auto = makeSprite('auto-brake', 'HXD1C_DZ.png', 35, 341, 45, 60, 4, 3, '自动制动阀');
-  elements.independent = makeSprite('independent-brake', 'HXD1C_XZ.png', 138, 341, 35, 60, 4, 3, '单独制动阀');
-  elements.traction = makeSprite('traction', 'HXD1C_GL.png', 464, 345, 46, 81, 2, 8, '牵引和电制动手柄');
-  elements.direction = makeSprite('direction', 'HXD1C_HX.png', 530, 366, 60, 40, 3, 1, '换向手柄');
+  elements.auto = makeSprite('auto-brake', 'HXD1C_DZ.png', 35, 341, 45, 60, 4, 3, '上下拖动自动制动阀换位');
+  elements.independent = makeSprite('independent-brake', 'HXD1C_XZ.png', 138, 341, 35, 60, 4, 3, '上下拖动单独制动阀；向右滑动并保持为单缓');
+  elements.traction = makeSprite('traction', 'HXD1C_GL.png', 464, 345, 46, 81, 2, 8, '上下拖动牵引和电制动手柄');
+  elements.direction = makeSprite('direction', 'HXD1C_HX.png', 530, 366, 60, 40, 3, 1, '点击切换换向手柄');
   elements.autoBadge = makeBadge('auto', '自阀', 20, 321, 80);
   elements.independentBadge = makeBadge('independent', '单阀', 116, 321, 78);
   elements.tractionBadge = makeBadge('traction', '牵引手柄', 438, 323, 86);
   elements.directionBadge = makeBadge('direction', '换向手柄', 521, 342, 88);
-  elements.sideRelease = makeBadge('side-release', '单缓', 113, 404, 68);
+  elements.sideRelease = makeBadge('side-release', '单缓（按住）', 107, 404, 82);
   elements.sideRelease.classList.add('side-release-control');
-  elements.sideRelease.addEventListener('click', () => simulation.command('side-release', !simulation.state.sideRelease));
+  const beginSideRelease = (event) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    simulation.command('side-release', true);
+  };
+  const endSideRelease = () => simulation.command('side-release', false);
+  elements.sideRelease.addEventListener('pointerdown', beginSideRelease);
+  elements.sideRelease.addEventListener('pointerup', endSideRelease);
+  elements.sideRelease.addEventListener('pointercancel', endSideRelease);
   makePhysical('放大LKJ监控装置', 210, 226, 101, 94, () => lkj.show(), 'lkj-hotspot');
 
+  makeNeedle('speedNeedle', 'HXD1C_SDZ.png', 493, 277, 3, 18, 2, 68, 300);
+  makeNeedle('mainNeedle', 'HXD1C_red.png', 154, 253, 7, 21, 14, 230, 100);
+  makeNeedle('pipeNeedle', 'HXD1C_black.png', 154, 253, 7, 21, 14, 230, 130);
+  makeNeedle('equalizingNeedle', 'HXD1C_black.png', 162, 295, 7, 21, 14, 224, 136);
+  makeNeedle('cylinderNeedle', 'HXD1C_red.png', 162, 295, 7, 21, 14, 230, 130);
+  makeStateSprite('locomotive-signal', 'HXD1C_jx.png', 540, 0, 100, 162, 4, 2);
+
   const controls = [
-    ['auto', elements.auto, 0, 5, 13],
-    ['independent', elements.independent, 0, 5, 13],
-    ['traction', elements.traction, -8, 7, 19],
+    ['auto', elements.auto, 0, 5],
+    ['independent', elements.independent, 0, 5],
+    ['traction', elements.traction, -8, 7],
   ];
-  for (const [id, sprite, min, max, step] of controls) {
+  for (const [id, sprite, min, max] of controls) {
     const begin = (event) => {
       event.preventDefault();
       const stateKey = id === 'auto' ? 'autoBrake' : id === 'independent' ? 'independentBrake' : 'traction';
-      activeDrag = { id, stateKey, pointerId: event.pointerId, startY: event.clientY, startValue: simulation.state[stateKey], min, max, step };
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      const range = max - min;
+      const step = id === 'traction'
+        ? Math.max(18, Math.min(24, sprite.getBoundingClientRect().height / 4))
+        : Math.max(10, sprite.getBoundingClientRect().height / range);
+      activeDrag = {
+        id, stateKey, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+        startValue: simulation.state[stateKey], min, max, step, moved: false, sideReleaseEngaged: false,
+      };
+      try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* window listeners keep the drag active */ }
     };
     sprite.addEventListener('pointerdown', begin);
     const badge = id === 'auto' ? elements.autoBadge : id === 'independent' ? elements.independentBadge : elements.tractionBadge;
     badge.addEventListener('pointerdown', begin);
     badge.addEventListener('click', () => {
-      if (activeDrag) return;
+      if (activeDrag || performance.now() < suppressControlClickUntil) return;
       const key = id === 'auto' ? 'autoBrake' : id === 'independent' ? 'independentBrake' : 'traction';
       const next = simulation.state[key] >= max ? (id === 'traction' ? 0 : min) : simulation.state[key] + 1;
       simulation.command(id === 'auto' ? 'auto-brake' : id === 'independent' ? 'independent-brake' : 'traction', next);
     });
+    if (id === 'auto') makeTouchTarget(id, 23, 326, 70, 91, '拖动自动制动阀', begin);
+    if (id === 'independent') {
+      makeTouchTarget(id, 122, 326, 35, 91, '上下拖动单阀；向右滑动并保持为单缓', begin);
+      makeTouchTarget(id, 157, 380, 31, 37, '上下拖动单阀；向右滑动并保持为单缓', begin);
+    }
+    if (id === 'traction') makeTouchTarget(id, 447, 326, 80, 116, '拖动牵引和电制动手柄', begin);
   }
-  const setDirection = () => simulation.command('direction', simulation.state.direction === 'F' ? 'N' : 'F');
+  const setDirection = () => simulation.command('direction', simulation.state.direction === 'F' ? 'N' : simulation.state.direction === 'N' ? 'R' : 'F');
   elements.direction.addEventListener('click', setDirection);
   elements.directionBadge.addEventListener('click', setDirection);
+  makeTouchTarget('direction', 516, 350, 88, 70, '切换换向手柄', (event) => {
+    event.preventDefault();
+    setDirection();
+  });
+  elements.traction.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    simulation.command('traction', 0);
+  });
 }
 
 window.addEventListener('pointermove', (event) => {
   if (!activeDrag || event.pointerId !== activeDrag.pointerId) return;
+  event.preventDefault();
+  const dx = event.clientX - activeDrag.startX;
+  const dy = event.clientY - activeDrag.startY;
+  if (activeDrag.sideReleaseEngaged) return;
+  if (activeDrag.id === 'independent' && dx > 16 && Math.abs(dx) > Math.abs(dy) * 1.1) {
+    if (!activeDrag.sideReleaseEngaged) {
+      activeDrag.sideReleaseEngaged = true;
+      activeDrag.moved = true;
+      simulation.command('side-release', true);
+    }
+    return;
+  }
   const change = Math.round((activeDrag.startY - event.clientY) / activeDrag.step);
   const value = clamp(activeDrag.startValue + change, activeDrag.min, activeDrag.max);
+  if (value === simulation.state[activeDrag.stateKey]) return;
+  activeDrag.moved = true;
   simulation.command(activeDrag.id === 'auto' ? 'auto-brake' : activeDrag.id === 'independent' ? 'independent-brake' : 'traction', value);
-});
-window.addEventListener('pointerup', (event) => { if (activeDrag?.pointerId === event.pointerId) activeDrag = null; });
-window.addEventListener('pointercancel', () => { activeDrag = null; });
+}, { passive: false });
+function finishControlDrag(event) {
+  if (!activeDrag || (event?.pointerId !== undefined && activeDrag.pointerId !== event.pointerId)) return;
+  if (activeDrag.sideReleaseEngaged) simulation.command('side-release', false);
+  if (activeDrag.moved) suppressControlClickUntil = performance.now() + 350;
+  activeDrag = null;
+}
+window.addEventListener('pointerup', finishControlDrag);
+window.addEventListener('pointercancel', finishControlDrag);
 
-function chooseMode(mode) {
+let routeWarmPromise = null;
+function warmTerminalAssets() {
+  if (routeWarmPromise) return routeWarmPromise;
+  const urls = [
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-7', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-7', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
+  ];
+  routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.arrayBuffer();
+  }))).catch(() => null);
+  return routeWarmPromise;
+}
+
+async function chooseMode(mode) {
   const validation = validateCandidate(currentCandidate);
   if (!validation.valid) {
     openCandidateGate();
@@ -140,13 +272,18 @@ function chooseMode(mode) {
   lkj.simulation = simulation;
   lkj.page = 'main';
   lkj.menuIndex = 0;
-  routeScene?.resizeObserver?.disconnect();
-  routeScene?.renderer?.dispose();
+  routeScene?.dispose?.();
   const oldCanvas = $('#route-scene');
   const newCanvas = oldCanvas.cloneNode(false);
   oldCanvas.replaceWith(newCanvas);
+  $('#route-loading-title').textContent = '正在加载终到站场';
+  $('#route-loading-message').textContent = '正在读取原线路、站台和地形资源，加载完成后训练计时才会开始。';
+  $('#route-loading-back').hidden = true;
+  $('.loading-spinner').hidden = false;
+  $('#route-loading').classList.add('open');
+  $('#route-loading').setAttribute('aria-hidden', 'false');
+  routeLoadStartedAt = performance.now();
   routeScene = new TerminalStoppingScene(newCanvas, SCENARIO, mode);
-  routeScene.loadPromise.catch((error) => { $('#status-message').textContent = `线路加载失败：${error.message}`; });
   simulation.addEventListener('change', render);
   simulation.addEventListener('complete', showResult);
   localStorage.setItem(`${PROJECT_ID}:last-mode`, mode);
@@ -161,9 +298,22 @@ function chooseMode(mode) {
   $('#lkj-dock').classList.remove('open');
   selectedView = 'front';
   selectView('front');
-  simulation.start();
-  lastFrame = performance.now();
-  render();
+  try {
+    await routeScene.loadPromise;
+    $('#route-loading').classList.remove('open');
+    $('#route-loading').setAttribute('aria-hidden', 'true');
+    simulation.start();
+    lastFrame = performance.now();
+    render();
+    routeScene.canvas.dataset.loadMilliseconds = String(Math.round(performance.now() - routeLoadStartedAt));
+  } catch (error) {
+    $('#status-message').textContent = `线路加载失败：${error.message}`;
+    $('#route-loading-title').textContent = '线路加载失败';
+    $('#route-loading-message').textContent = `${error.message}。请检查网络后返回重试。`;
+    $('#route-loading-back').hidden = false;
+    $('.loading-spinner').hidden = true;
+    $('#route-loading').classList.add('open');
+  }
 }
 
 function selectView(view) {
@@ -176,10 +326,16 @@ function selectView(view) {
 
 function render() {
   const s = simulation.state;
-  frame(elements.auto, s.autoBrake, 4, 3);
+  frame(elements.auto, autoBrakeFrames[s.autoBrake], 4, 3);
   frame(elements.independent, s.independentBrake, 4, 3);
   frame(elements.traction, tractionFrame(s.traction), 2, 8);
   frame(elements.direction, s.direction === 'R' ? 0 : s.direction === 'N' ? 1 : 2, 3, 1);
+  frame(elements['locomotive-signal'], signalFrames[s.signal?.aspect] ?? signalFrames.yellow, 4, 2);
+  setNeedle(elements.speedNeedle, s.speed, 158);
+  setNeedle(elements.mainNeedle, 1_000, 1_600);
+  setNeedle(elements.pipeNeedle, s.trainPipe, 1_000);
+  setNeedle(elements.equalizingNeedle, s.equalizingReservoir, 1_600);
+  setNeedle(elements.cylinderNeedle, s.locomotiveCylinder, 1_600);
   elements.autoBadge.querySelector('span').textContent = brakeNames[s.autoBrake];
   elements.independentBadge.querySelector('span').textContent = s.independentBrake ? `${s.independentBrake}级` : '缓解位';
   elements.tractionBadge.querySelector('span').textContent = s.traction > 0 ? `牵引 ${s.traction}.0级` : s.traction < 0 ? `电制 ${Math.abs(s.traction)}级` : '零位';
@@ -216,14 +372,13 @@ function renderData(s) {
     ['速度', `${s.speed.toFixed(1)} km/h`], ['参考速度', s.mode === 'training' ? `${s.targetBand.target.toFixed(0)} km/h` : '已隐藏'],
     ['距停车标', `${Math.max(0, SCENARIO.targetDistance - s.distance).toFixed(0)} m`], ['停车误差', s.stopError == null ? '—' : formatError(s.stopError)],
     ['列车管', `${s.trainPipe.toFixed(0)} kPa`], ['减压量', `${Math.max(0, 600 - s.trainPipe).toFixed(0)} kPa`],
-    ['制动缸', `${s.brakeCylinder.toFixed(0)} kPa`], ['自阀', brakeNames[s.autoBrake]],
+    ['机车制动缸', `${s.locomotiveCylinder.toFixed(0)} kPa`], ['自阀', brakeNames[s.autoBrake]],
   ];
   $('#run-data').innerHTML = rows.map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`).join('');
 }
 
 function updateMobileLabels(s) {
-  $('#mobile-auto-state').textContent = brakeNames[s.autoBrake];
-  $('#mobile-traction-state').textContent = s.traction === 0 ? '零位' : `${s.traction}级`;
+  elements.sideRelease?.setAttribute('aria-pressed', String(s.sideRelease));
 }
 
 function formatError(error) {
@@ -337,6 +492,7 @@ $('#candidate-form').addEventListener('submit', (event) => {
   }
   currentCandidate = saveCandidateDraft(validation.candidate);
   closeCandidateGate();
+  warmTerminalAssets();
 });
 document.querySelectorAll('[data-mode]').forEach((button) => button.addEventListener('click', () => chooseMode(button.dataset.mode)));
 $('#callout').addEventListener('click', () => simulation.command('callout'));
@@ -356,13 +512,11 @@ $('#change-candidate').addEventListener('click', () => {
   $('#mode-picker').classList.add('open');
   openCandidateGate(true);
 });
-$('#mobile-traction-zero').addEventListener('click', () => simulation.command('traction', 0));
-$('#mobile-auto-down').addEventListener('click', () => changeAuto(-1));
-$('#mobile-auto-up').addEventListener('click', () => changeAuto(1));
-$('#mobile-side-release').addEventListener('click', () => simulation.command('side-release', !simulation.state.sideRelease));
-$('#mobile-independent-full').addEventListener('click', () => simulation.command('independent-brake', 5));
-$('#mobile-callout').addEventListener('click', () => simulation.command('callout'));
-$('#mobile-lkj').addEventListener('click', () => lkj.show());
+$('#route-loading-back').addEventListener('click', () => {
+  $('#route-loading').classList.remove('open');
+  $('#route-loading').setAttribute('aria-hidden', 'true');
+  $('#mode-picker').classList.add('open');
+});
 window.addEventListener('keydown', (event) => {
   if (!$('#candidate-gate').hidden || $('#mode-picker').classList.contains('open')) return;
   if (event.key === 'Escape') {

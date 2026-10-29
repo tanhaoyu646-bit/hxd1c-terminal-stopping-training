@@ -10,11 +10,12 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; overflow: hidden; background: #050b10; }
 button { font: inherit; color: inherit; }
 button, .sprite { touch-action: none; }
 
-.candidate-gate { position: fixed; z-index: 5000; inset: 0; display: grid; place-items: center; min-height: 100%; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); overflow: auto; background: radial-gradient(circle at 50% 6%, #19465f 0, #071722 47%, #02080d 100%); }
+.candidate-gate { position: fixed; z-index: 5000; top: var(--visual-offset-top, 0); right: 0; left: 0; display: grid; place-items: center; height: var(--visual-height, 100dvh); min-height: 0; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); overflow: auto; background: radial-gradient(circle at 50% 6%, #19465f 0, #071722 47%, #02080d 100%); }
 .candidate-gate[hidden] { display: none; }
 .candidate-card { width: min(580px, 94vw); padding: 30px; border: 1px solid #55b9df; border-radius: 16px; background: #061827f2; box-shadow: 0 24px 90px #000b, 0 0 42px #208ecb38; }
 .candidate-eyebrow { color: #73d9fa; font-size: 11px; letter-spacing: .18em; text-transform: uppercase; }
@@ -170,8 +171,11 @@ button, .sprite { touch-action: none; }
 .data-panel dt { color: #7ca5b8; font-size: 10px; }
 .data-panel dd { margin: 3px 0 0; color: #f2fbff; font-weight: 700; }
 
-.sprite, .control-position-badge, .physical-control { position: absolute; pointer-events: auto; }
+.sprite, .control-position-badge, .physical-control, .touch-target, .original-game-needle, .state-sprite { position: absolute; }
 .sprite { z-index: 4; background-repeat: no-repeat; filter: drop-shadow(0 3px 2px #0009); }
+.original-game-needle { z-index: 6; pointer-events: none; }
+.state-sprite { z-index: 3; background-repeat: no-repeat; pointer-events: none; }
+.touch-target { z-index: 10; display: none; min-width: 0; min-height: 0; padding: 0; border: 0; background: transparent; pointer-events: auto; touch-action: none; }
 .physical-control { z-index: 8; border: 1px dashed transparent; background: transparent; cursor: pointer; }
 .physical-control:focus-visible { border-color: #8be7ff; outline: 0; background: #40c9ff28; }
 .control-position-badge {
@@ -190,7 +194,7 @@ button, .sprite { touch-action: none; }
 .side-release-control { border-color: #e7b84e; background: #4b3809e8; }
 .side-release-control.active { background: #855f08; box-shadow: 0 0 16px #ffd75d; }
 
-.mobile-controls { display: none; }
+.mobile-control-hint { display: none; }
 
 .lkj-dock {
   position: absolute;
@@ -249,6 +253,12 @@ button, .sprite { touch-action: none; }
 
 .modal { position: absolute; z-index: 100; inset: 0; display: none; place-items: center; padding: 4%; background: #02080dcc; backdrop-filter: blur(8px); }
 .modal.open { display: grid; }
+.loading-card { display: grid; justify-items: center; width: min(520px, 90%); padding: 28px; border: 1px solid #4fc3e5; border-radius: 14px; background: #061a27f5; box-shadow: 0 22px 70px #000d; text-align: center; }
+.loading-card strong { margin-top: 14px; color: #effbff; font-size: clamp(20px, 3vw, 32px); }
+.loading-card p { margin: 9px 0 0; color: #9ec4d3; line-height: 1.6; }
+.loading-card button { margin-top: 16px; min-height: 42px; padding: 8px 18px; border: 1px solid #55c7e9; border-radius: 7px; background: #0b3b50; }
+.loading-spinner { width: 46px; height: 46px; border: 4px solid #23596c; border-top-color: #69defc; border-radius: 50%; animation: loading-spin .85s linear infinite; }
+@keyframes loading-spin { to { transform: rotate(360deg); } }
 .picker-card, .result-card { width: min(880px, 94%); max-height: 94%; overflow: auto; padding: clamp(24px, 4vw, 48px); border: 1px solid #54c6e8; border-radius: 20px; background: linear-gradient(145deg, #0b2938f5, #06141ff5); box-shadow: 0 30px 90px #000; }
 .eyebrow { color: #64dffc; font-size: 12px; letter-spacing: .22em; text-transform: uppercase; }
 .picker-card h1, .result-card h2 { margin: .3em 0; font-size: clamp(30px, 4vw, 56px); }
@@ -290,26 +300,12 @@ button, .sprite { touch-action: none; }
   .training-guide span, .training-guide small { font-size: 8px; }
   .training-guide b { font-size: 13px; }
   .training-guide p { font-size: 8px; line-height: 1.3; }
-  .status-strip { bottom: calc(62px + env(safe-area-inset-bottom)); min-width: 56%; padding: 4px 9px; font-size: 9px; }
+  .status-strip { bottom: max(4px, env(safe-area-inset-bottom)); min-width: 56%; padding: 4px 9px; font-size: 9px; }
   .control-position-badge { min-height: 29px; padding: 2px; }
+  .touch-target { display: block; }
+  .mobile-control-hint { position: absolute; z-index: 29; top: max(48px, calc(env(safe-area-inset-top) + 42px)); left: 50%; display: block; margin: 0; transform: translateX(-50%); padding: 4px 8px; border: 1px solid #507b8b; border-radius: 6px; background: #04131dc9; color: #a9cedb; font-size: 8px; white-space: nowrap; pointer-events: none; }
   .side-panel { top: 11%; right: max(1%, env(safe-area-inset-right)); width: 42%; max-height: 70%; padding: 8px; }
   .side-panel li, .side-panel p { font-size: 9px; }
-  .mobile-controls {
-    position: absolute;
-    z-index: 55;
-    right: max(4px, env(safe-area-inset-right));
-    bottom: max(4px, env(safe-area-inset-bottom));
-    left: max(4px, env(safe-area-inset-left));
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 5px;
-    pointer-events: none;
-  }
-  .mobile-controls button { min-height: 54px; padding: 4px 3px; border: 1px solid #4fc7e8; border-radius: 8px; background: #051a25e8; box-shadow: 0 4px 10px #000b; pointer-events: auto; }
-  .mobile-controls button:active { transform: translateY(1px); background: #12465c; }
-  .mobile-controls b, .mobile-controls span { display: block; }
-  .mobile-controls b { color: #eafaff; font-size: 10px; }
-  .mobile-controls span { margin-top: 3px; color: #71dffb; font-size: 8px; }
   .lkj-dock { position: fixed; z-index: 120; top: 50%; left: 50%; width: min(92vw, 112vh); transform: translate(-50%, -50%); }
   .lkj-top b { font-size: 6vw; }
   .lkj-top strong { font-size: 4.5vw; }

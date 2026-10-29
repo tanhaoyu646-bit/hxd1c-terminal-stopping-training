@@ -1,4 +1,4 @@
-import { LKJ_KEYS } from './terminalStoppingConfig.js?v=terminal-station-6';
+import { LKJ_KEYS } from './terminalStoppingConfig.js?v=terminal-station-7';
 
 const pct = (value, total) => `${value / total * 100}%`;
 const fmt = (value, digits = 0) => Number(value || 0).toFixed(digits);
@@ -99,7 +99,7 @@ export class LkjRuntime {
     } else if (this.page === 'condition') {
       this.screen.innerHTML = this.detailPage('工况显示', [
         ['速度', `${fmt(s.speed, 1)} km/h`], ['牵引手柄', `${s.traction} 级`], ['自阀', `${s.autoBrake} 位`],
-        ['列车管', `${fmt(s.trainPipe)} kPa`], ['制动缸', `${fmt(s.brakeCylinder)} kPa`], ['运行里程', `${fmt(s.distance)} m`],
+        ['列车管', `${fmt(s.trainPipe)} kPa`], ['机车制动缸', `${fmt(s.locomotiveCylinder ?? s.brakeCylinder)} kPa`], ['运行里程', `${fmt(s.distance)} m`],
       ]);
     } else if (this.page === 'equipment') {
       this.screen.innerHTML = this.detailPage('设备状态', [

@@ -7,6 +7,8 @@ import { LOOKOUT_TRAINING_CONFIG } from './lookoutTrainingConfig.js';
 // 因此所有三维资源必须相对 import.meta.url 解析，不能使用普通 ../assets 字符串。
 const SOURCE_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-full-scene.json', import.meta.url).href;
 const ROUTE_PATH = new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path.json', import.meta.url).href;
+const TERMINAL_STATION_SOURCE_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-7', import.meta.url).href;
+const TERMINAL_STATION_ROUTE_PATH = new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-7', import.meta.url).href;
 const TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-terrain.json', import.meta.url).href;
 const LOOKOUT_TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-terrain-native.json', import.meta.url).href;
 const TERMINAL_STATION_TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url).href;
@@ -60,9 +62,10 @@ export class MstsRouteScene {
     this.renderOptions = this.isTerminalStation
       ? TERMINAL_STATION_RENDER_OPTIONS
       : this.isCorridor ? LOOKOUT_ROUTE_RENDER_OPTIONS : DEFAULT_ROUTE_RENDER_OPTIONS;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     const coarse = matchMedia('(pointer: coarse)').matches;
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1.15 : 1.5));
+    this.mobileOptimized = coarse;
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !coarse, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1 : 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -131,22 +134,22 @@ export class MstsRouteScene {
   async load() {
     try {
       const requests = [
-        fetch(SOURCE_PATH, { cache: 'no-store' }),
-        fetch(ROUTE_PATH, { cache: 'no-store' }),
+        fetch(this.isTerminalStation ? TERMINAL_STATION_SOURCE_PATH : SOURCE_PATH),
+        fetch(this.isTerminalStation ? TERMINAL_STATION_ROUTE_PATH : ROUTE_PATH),
         fetch(this.isTerminalStation
           ? TERMINAL_STATION_TERRAIN_PATH
-          : this.isCorridor ? LOOKOUT_TERRAIN_PATH : TERRAIN_PATH, { cache: 'no-store' }),
+          : this.isCorridor ? LOOKOUT_TERRAIN_PATH : TERRAIN_PATH),
       ];
-      if (this.isCorridor) {
-        requests.push(fetch(LOOKOUT_PREFAB_PATH, { cache: 'no-store' }));
-        requests.push(fetch(LOOKOUT_REPAIR_ASSET_PATH, { cache: 'no-store' }));
+      if (this.isLookout) {
+        requests.push(fetch(LOOKOUT_PREFAB_PATH));
+        requests.push(fetch(LOOKOUT_REPAIR_ASSET_PATH));
       }
       const [sceneResponse, pathResponse, terrainResponse, prefabResponse, repairAssetResponse] = await Promise.all(requests);
       if (!sceneResponse.ok) throw new Error(`路线场景加载失败：HTTP ${sceneResponse.status}`);
       if (!pathResponse.ok) throw new Error(`轨道中心线加载失败：HTTP ${pathResponse.status}`);
       if (!terrainResponse.ok) throw new Error(`原线路地形加载失败：HTTP ${terrainResponse.status}`);
-      if (this.isCorridor && !prefabResponse?.ok) throw new Error(`原线路素材加载失败：HTTP ${prefabResponse?.status}`);
-      if (this.isCorridor && !repairAssetResponse?.ok) throw new Error(`原游戏补充素材加载失败：HTTP ${repairAssetResponse?.status}`);
+      if (this.isLookout && !prefabResponse?.ok) throw new Error(`原线路素材加载失败：HTTP ${prefabResponse?.status}`);
+      if (this.isLookout && !repairAssetResponse?.ok) throw new Error(`原游戏补充素材加载失败：HTTP ${repairAssetResponse?.status}`);
       const [sceneData, pathData, terrainData, prefabData, repairAssetData] = await Promise.all([
         sceneResponse.json(),
         pathResponse.json(),
@@ -163,7 +166,9 @@ export class MstsRouteScene {
       if (this.isCorridor) {
         // 本务线钢轨在加载时已经覆盖完整 TrackDB 路径；远裁剪面也必须覆盖同一范围，
         // 不能再用旧版 3 km 视距把实际存在的三维钢轨截掉。
-        this.camera.far = Math.max(50_000, Math.ceil(this.pathLength + 1_000));
+        this.camera.far = this.isTerminalStation
+          ? Math.max(3_500, (Number(this.routeWindow?.end) || 0) - (Number(this.routeWindow?.start) || 0) + 1_400)
+          : Math.max(50_000, Math.ceil(this.pathLength + 1_000));
         this.camera.userData.fullRouteFarPlane = true;
         this.camera.updateProjectionMatrix();
       }
@@ -172,13 +177,18 @@ export class MstsRouteScene {
       this.buildPassengerConsist(12);
       // 瞭望项目的本务主线在加载时一次性生成到 TrackDB 路径终点。
       // 课程仍在6 km结算，但不再因考核终点人为截断三维钢轨。
-      const renderedRouteDistance = this.isCorridor
-        ? this.pathLength
+      const renderedRouteStart = this.isTerminalStation
+        ? Math.max(0, Number(this.routeWindow?.start) || 0)
+        : 0;
+      const renderedRouteDistance = this.isTerminalStation
+        ? Math.min(this.pathLength, Number(this.routeWindow?.end) || this.pathLength)
+        : this.isCorridor
+          ? this.pathLength
         : Math.min(this.pathLength, LOOKOUT_TRAINING_CONFIG.finishDistance + 350);
       const railEvent = LOOKOUT_TRAINING_CONFIG.events.find((item) => item.visualKind === 'rail');
-      if (this.renderOptions.proceduralTrack) this.buildSelectedRouteTrack(renderedRouteDistance);
+      if (this.renderOptions.proceduralTrack) this.buildSelectedRouteTrack(renderedRouteDistance, renderedRouteStart);
       if (this.renderOptions.railHighlights) this.buildRailHighlights(renderedRouteDistance, railEvent);
-      if (this.renderOptions.continuousRailHeads) this.buildContinuousRailHeads(renderedRouteDistance);
+      if (this.renderOptions.continuousRailHeads) this.buildContinuousRailHeads(renderedRouteDistance, renderedRouteStart);
       if (this.renderOptions.sourceDepartureSignal && !this.isPowerTraining) this.buildSourceDepartureSignal(sceneData);
       if (!this.isPowerTraining) this.buildSourceRouteSignalLights(sceneData);
       if (this.isLookout) this.buildLookoutTrainingScenery(sceneData, prefabData, repairAssetData);
@@ -202,7 +212,7 @@ export class MstsRouteScene {
     terrainTexture.colorSpace = THREE.SRGBColorSpace;
     terrainTexture.wrapS = terrainTexture.wrapT = THREE.RepeatWrapping;
     terrainTexture.repeat.set(18, 18);
-    terrainTexture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    terrainTexture.anisotropy = Math.min(this.mobileOptimized ? 1 : 4, this.renderer.capabilities.getMaxAnisotropy());
     const microTexture = this.textureLoader.load(`${TEXTURE_PATH}microtex.png`);
     microTexture.wrapS = microTexture.wrapT = THREE.RepeatWrapping;
     microTexture.repeat.set(18, 18);
@@ -350,7 +360,7 @@ export class MstsRouteScene {
       texture.flipY = false;
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+      texture.anisotropy = Math.min(this.mobileOptimized ? 1 : 4, this.renderer.capabilities.getMaxAnisotropy());
     }
     const isTrackMaterial = /track/i.test(textureName);
     const isRailTop = /rail[_ ]?tops?/i.test(materialName);
@@ -517,7 +527,9 @@ export class MstsRouteScene {
     // 原中心线只包含轨道构件连接点。直接线性插值会在曲线连接处走弦线，
     // 驾驶视点离开站场后看起来会切出钢轨。使用相邻真实 TrackObj 的朝向
     // 构造 Hermite 中心线，并以约5 m间距重采样，使位置和朝向连续贴合线路。
-    const alignedPoints = buildRailAlignedPath(data.positions, sceneData?.instances, { spacing: 5 });
+    const alignedPoints = data?.summary?.aligned
+      ? Array.from({ length: data.positions.length / 3 }, (_, index) => data.positions.slice(index * 3, index * 3 + 3))
+      : buildRailAlignedPath(data.positions, sceneData?.instances, { spacing: 5 });
     this.routePoints = alignedPoints.map((point) => new THREE.Vector3(...point));
     this.routeDistances = cumulativePathDistances(alignedPoints);
     this.pathLength = this.routeDistances[this.routeDistances.length - 1];
@@ -777,7 +789,7 @@ export class MstsRouteScene {
     this.lookoutVisuals.railGlint = glintRoot;
   }
 
-  buildContinuousRailHeads(maxDistance) {
+  buildContinuousRailHeads(maxDistance, minDistance = 0) {
     // “钢轨反光中断”只属于途中瞭望考核。过分相项目若复用该缺口，会在
     // 4600–4780 m之间丢失远景轨顶LOD，看起来像近、远钢轨突然合拢断开。
     const railEvent = this.isLookout
@@ -786,7 +798,7 @@ export class MstsRouteScene {
     // 正常反光在评分危险边界处突然终止，后续180 m保持暗哑。
     // 这样学生从约400 m外看到的视觉边界，与必须停车的位置一致。
     const gapStart = railEvent
-      ? Math.max(0, Number(railEvent.hazardDistance || 0))
+      ? Math.max(minDistance, Number(railEvent.hazardDistance || 0))
       : maxDistance;
     const gapEnd = railEvent
       ? Math.min(maxDistance, Number(railEvent.glintBreakEndDistance || gapStart + 180))
@@ -833,7 +845,7 @@ export class MstsRouteScene {
     railRoot.name = 'LOOKOUT_CONTINUOUS_SOURCE_STYLE_RAILS';
     railRoot.userData.generatedAtLoad = true;
     railRoot.userData.source = 'NEIYI TrackDB rail-aligned path';
-    railRoot.userData.startDistance = 0;
+    railRoot.userData.startDistance = minDistance;
     railRoot.userData.endDistance = maxDistance;
     railRoot.userData.distanceLimited = false;
     railRoot.userData.fogLimited = false;
@@ -929,20 +941,20 @@ export class MstsRouteScene {
     const farVisibilityRoot = new THREE.Group();
     farVisibilityRoot.name = 'LOOKOUT_MAINLINE_RAIL_VISIBILITY_LOD';
     farVisibilityRoot.userData.source = 'native one-pixel metal continuity line over complete 3D rail heads';
-    farVisibilityRoot.userData.startDistance = 0;
+    farVisibilityRoot.userData.startDistance = minDistance;
     farVisibilityRoot.userData.endDistance = maxDistance;
     farVisibilityRoot.userData.distanceLimited = false;
     farVisibilityRoot.userData.fogLimited = false;
 
     for (const railOffset of [-gaugeHalf, gaugeHalf]) {
       // 钢轨本体贯通全线，反光异常只改变顶面材质，不制造真实断轨或接缝。
-      buildRailSection(railOffset, 0, maxDistance, railBodyMaterial, 'BODY', {
+      buildRailSection(railOffset, minDistance, maxDistance, railBodyMaterial, 'BODY', {
         halfWidth: 0.075,
         baseHeight: 0.2,
         railHeight: 0.125,
         uvMode: 'rail-side',
       });
-      buildRailSection(railOffset, 0, gapStart, polishedMaterial, 'POLISHED_BEFORE', {
+      buildRailSection(railOffset, minDistance, gapStart, polishedMaterial, 'POLISHED_BEFORE', {
         halfWidth: 0.075,
         baseHeight: 0.325,
         railHeight: 0.008,
@@ -959,7 +971,7 @@ export class MstsRouteScene {
         railHeight: 0.008,
         uvMode: 'rail-top',
       });
-      buildFarVisibilitySection(railOffset, 0, gapStart, 'BEFORE_GLINT_BREAK');
+      buildFarVisibilitySection(railOffset, minDistance, gapStart, 'BEFORE_GLINT_BREAK');
       buildFarVisibilitySection(railOffset, gapEnd, maxDistance, 'AFTER_GLINT_BREAK');
     }
     this.routeRoot.add(railRoot);
@@ -968,18 +980,22 @@ export class MstsRouteScene {
     this.lookoutVisuals.railVisibilityLod = farVisibilityRoot;
   }
 
-  buildSelectedRouteTrack(maxDistance) {
-    const count = this.routePoints.findIndex((_, index) => this.routeDistances[index] > maxDistance);
-    const pointCount = count === -1 ? this.routePoints.length : Math.max(2, count + 1);
+  buildSelectedRouteTrack(maxDistance, minDistance = 0) {
+    const firstMatch = this.routeDistances.findIndex((distance) => distance >= minDistance);
+    const startIndex = Math.max(0, firstMatch === -1 ? 0 : firstMatch - 1);
+    const endMatch = this.routeDistances.findIndex((distance) => distance > maxDistance);
+    const endIndex = endMatch === -1 ? this.routePoints.length - 1 : Math.min(this.routePoints.length - 1, endMatch);
+    const pointCount = Math.max(2, endIndex - startIndex + 1);
     const ribbon = (halfWidth, yOffset, material, name, textured = false) => {
       const positions = [];
       const normals = [];
       const uvs = [];
       const indices = [];
       for (let index = 0; index < pointCount; index += 1) {
-        const point = this.routePoints[index];
-        const previous = this.routePoints[Math.max(0, index - 1)];
-        const next = this.routePoints[Math.min(pointCount - 1, index + 1)];
+        const routeIndex = Math.min(endIndex, startIndex + index);
+        const point = this.routePoints[routeIndex];
+        const previous = this.routePoints[Math.max(0, routeIndex - 1)];
+        const next = this.routePoints[Math.min(this.routePoints.length - 1, routeIndex + 1)];
         const tangent = new THREE.Vector3().subVectors(next, previous);
         tangent.y = 0;
         if (tangent.lengthSq() < 0.000001) tangent.copy(this.forward);
@@ -992,7 +1008,7 @@ export class MstsRouteScene {
         positions.push(left.x, left.y, left.z, rightEdge.x, rightEdge.y, rightEdge.z);
         normals.push(0, 1, 0, 0, 1, 0);
         if (textured) {
-          const repeat = this.routeDistances[index] / 6.56;
+          const repeat = this.routeDistances[routeIndex] / 6.56;
           uvs.push(0, repeat, 1, repeat);
         }
         if (index < pointCount - 1) {
@@ -1010,6 +1026,7 @@ export class MstsRouteScene {
       mesh.name = name;
       mesh.frustumCulled = false;
       mesh.userData.generatedAtLoad = true;
+      mesh.userData.startDistance = minDistance;
       mesh.userData.endDistance = maxDistance;
       this.routeRoot.add(mesh);
     };
@@ -1817,6 +1834,29 @@ export class MstsRouteScene {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+  }
+
+  dispose() {
+    this.resizeObserver?.disconnect();
+    const geometries = new Set();
+    const materials = new Set();
+    const textures = new Set();
+    this.scene.traverse((object) => {
+      if (object.geometry) geometries.add(object.geometry);
+      const objectMaterials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : [];
+      objectMaterials.forEach((material) => {
+        materials.add(material);
+        Object.values(material).forEach((value) => {
+          if (value?.isTexture) textures.add(value);
+        });
+      });
+    });
+    this.materialCache.forEach((material) => materials.add(material));
+    geometries.forEach((geometry) => geometry.dispose());
+    textures.forEach((texture) => texture.dispose());
+    materials.forEach((material) => material.dispose());
+    this.renderer.renderLists?.dispose();
+    this.renderer.dispose();
   }
 
   render() {

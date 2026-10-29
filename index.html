@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#06131d">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23061925'/%3E%3Cpath d='M13 39h38M18 39V20h28v19M24 48l5-9m11 9-5-9' stroke='%2358d7ff' stroke-width='5' fill='none'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%23f0c457'/%3E%3Ccircle cx='39' cy='29' r='3' fill='%23f0c457'/%3E%3C/svg%3E">
   <title>HXD1C 终到对标停车虚拟实训</title>
-  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-6">
+  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-7">
 </head>
 <body class="mobile-controls-enabled candidate-entry-active">
   <section id="candidate-gate" class="candidate-gate" aria-labelledby="candidate-title">
@@ -78,15 +78,7 @@
         <b id="mode-name">教学训练</b><span id="phase-name">进站确认</span><em id="status-message">监控正常</em>
       </div>
 
-      <section id="mobile-controls" class="mobile-controls" aria-label="手机横屏操纵">
-        <button type="button" id="mobile-traction-zero"><b>牵引回零</b><span id="mobile-traction-state">1级</span></button>
-        <button type="button" id="mobile-auto-down"><b>自阀 −</b><span>减位</span></button>
-        <button type="button" id="mobile-auto-up"><b>自阀 ＋</b><span id="mobile-auto-state">运转位</span></button>
-        <button type="button" id="mobile-side-release"><b>单缓</b><span>切换</span></button>
-        <button type="button" id="mobile-independent-full"><b>单阀全制</b><span>停车后</span></button>
-        <button type="button" id="mobile-callout"><b>呼唤</b><span>确认</span></button>
-        <button type="button" id="mobile-lkj"><b>LKJ</b><span>放大</span></button>
-      </section>
+      <p class="mobile-control-hint">直接拖动原操作台手柄：上下换位；单阀向右滑动并保持为单缓</p>
 
       <section id="lkj-dock" class="lkj-dock" aria-hidden="true">
         <button type="button" class="lkj-close" data-lkj-close aria-label="关闭LKJ放大界面">×</button>
@@ -107,6 +99,15 @@
             <button type="button" data-mode="assessment"><b>独立考核</b><span>隐藏参考点和答案，只记录操作、速度曲线、停车误差及安全红线。</span><em>开始考核</em></button>
           </div>
           <small>独立项目：仅使用 <code>hxd1c-terminal-stopping-v1</code> 浏览器存储，不读取或写入其他训练项目。</small>
+        </div>
+      </section>
+
+      <section id="route-loading" class="modal" aria-hidden="true" aria-live="polite">
+        <div class="loading-card">
+          <span class="loading-spinner" aria-hidden="true"></span>
+          <strong id="route-loading-title">正在加载终到站场</strong>
+          <p id="route-loading-message">正在读取原线路、站台和地形资源，加载完成后训练计时才会开始。</p>
+          <button type="button" id="route-loading-back" hidden>返回选择模式</button>
         </div>
       </section>
 

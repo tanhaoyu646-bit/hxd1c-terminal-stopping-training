@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { SCENARIO, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
 import { TerminalStoppingSimulation } from '../scripts/terminalStoppingSimulation.js';
 import { TerminalStoppingAssessment } from '../scripts/terminalStoppingAssessment.js';
@@ -29,6 +31,7 @@ function runStandard(mode = 'assessment') {
     if (state.distance >= SCENARIO.brakingPoint && !initialBrake) {
       simulation.command('auto-brake', 1);
       simulation.command('side-release', true);
+      simulation.command('side-release', false);
       initialBrake = true;
     }
     if (state.distance >= SCENARIO.checkPoint && !addition) {
@@ -122,6 +125,31 @@ test('动力制动或运行中使用单阀会被记录并扣分', () => {
   assert.ok(result.categories.find((item) => item.name === '制动机操纵').score < 25);
 });
 
+test('运行中或牵引未回零时换向手柄受联锁阻止并记录红线尝试', () => {
+  const simulation = new TerminalStoppingSimulation('assessment');
+  simulation.start();
+  assert.equal(simulation.command('direction', 'N'), false);
+  assert.equal(simulation.state.direction, 'F');
+  assert.ok(simulation.state.events.some((event) => event.type === 'direction-while-moving' && event.blocked));
+});
+
+test('单缓只缓解机车制动缸且松手后恢复自动制动作用', () => {
+  const simulation = new TerminalStoppingSimulation('training');
+  simulation.start();
+  simulation.command('traction', 0);
+  simulation.command('auto-brake', 1);
+  for (let index = 0; index < 200; index += 1) simulation.tick(.05);
+  const beforeRelease = simulation.state.locomotiveCylinder;
+  simulation.command('side-release', true);
+  for (let index = 0; index < 80; index += 1) simulation.tick(.05);
+  const duringRelease = simulation.state.locomotiveCylinder;
+  assert.ok(duringRelease < beforeRelease * .35, `${beforeRelease} -> ${duringRelease}`);
+  assert.ok(simulation.state.brakeCylinder > duringRelease);
+  simulation.command('side-release', false);
+  for (let index = 0; index < 80; index += 1) simulation.tick(.05);
+  assert.ok(simulation.state.locomotiveCylinder > duringRelease);
+});
+
 test('停车标位于原大山铺站台有效范围内', () => {
   const targetWorldDistance = SCENARIO.startOffset + SCENARIO.targetDistance;
   assert.equal(SCENARIO.sourcePlatform.shape, 'platform-300m-no-awning.s');
@@ -133,14 +161,34 @@ test('停车标位于原大山铺站台有效范围内', () => {
 });
 
 test('终到场景包含原站台和移动端兼容的原地形资产', () => {
-  const scene = JSON.parse(readFileSync(new URL('../assets/msts-neiyi-corridor/neiyi-lookout-full-scene.json', import.meta.url), 'utf8'));
+  const sceneUrl = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json', import.meta.url);
+  const scene = JSON.parse(readFileSync(sceneUrl, 'utf8'));
   const terrain = JSON.parse(readFileSync(new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url), 'utf8'));
   const platform = scene.instances.find((item) => item.uid === SCENARIO.sourcePlatform.uid);
   assert.equal(platform?.shape, SCENARIO.sourcePlatform.shape);
+  assert.ok(scene.summary.instanceCount < 1_000, `terminal instances ${scene.summary.instanceCount}`);
+  assert.ok(statSync(sceneUrl).size < 1_500_000, `terminal scene bytes ${statSync(sceneUrl).size}`);
   assert.equal(terrain.summary.tileCount, 6);
   assert.equal(terrain.summary.resolution, 129);
   assert.equal(terrain.tiles.length, 6);
   assert.ok(terrain.tiles.every((tile) => tile.resolution === 129 && tile.heights.length === 129 * 129));
+});
+
+test('终到裁剪场景引用的全部纹理均可发布', () => {
+  const scene = JSON.parse(readFileSync(new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json', import.meta.url), 'utf8'));
+  const textureRoot = fileURLToPath(new URL('../assets/msts-neiyi-corridor/textures/', import.meta.url));
+  const aliases = {
+    'acleanttrack1.png': 'ACleanTrack1.png',
+    'acleanttrack2.png': 'ACleanTrack2.png',
+    'acleantrack1.png': 'ACleanTrack1.png',
+    'acleantrack2.png': 'ACleanTrack2.png',
+    'sign.png': 'Sign.png',
+  };
+  const textures = [...new Set(Object.values(scene.shapes).flatMap((shape) => (
+    (shape.materials || []).map((material) => material.texture).filter(Boolean)
+  )))];
+  const missing = textures.filter((name) => !existsSync(join(textureRoot, aliases[name.toLowerCase()] || name)));
+  assert.deepEqual(missing, []);
 });
 
 test('远景钢轨使用原生线段而非会产生鼓包的屏幕空间三角带', () => {
@@ -149,4 +197,25 @@ test('远景钢轨使用原生线段而非会产生鼓包的屏幕空间三角�
   assert.doesNotMatch(source, /halfWidthPixels/);
   assert.match(source, /entrySignalDistance/);
   assert.match(source, /terminalEntrySignal && definition\.yellow \? 'yellow'/);
+});
+
+test('手机端只加载站场裁剪资源且轨道几何限制在终到窗口', () => {
+  const sceneSource = readFileSync(new URL('../scripts/mstsRouteScene.js', import.meta.url), 'utf8');
+  const appSource = readFileSync(new URL('../scripts/terminalStoppingApp.js', import.meta.url), 'utf8');
+  assert.match(sceneSource, /neiyi-dashanpu-terminal-scene\.json/);
+  assert.match(sceneSource, /neiyi-5635-trackdb-path-aligned\.json/);
+  assert.doesNotMatch(sceneSource, /fetch\([^\n]+cache:\s*'no-store'/);
+  assert.match(sceneSource, /buildSelectedRouteTrack\(renderedRouteDistance, renderedRouteStart\)/);
+  assert.match(sceneSource, /buildContinuousRailHeads\(renderedRouteDistance, renderedRouteStart\)/);
+  assert.match(appSource, /await routeScene\.loadPromise/);
+});
+
+test('操作台沿用原HXD1C档位贴图、动态仪表和单阀右滑单缓', () => {
+  const appSource = readFileSync(new URL('../scripts/terminalStoppingApp.js', import.meta.url), 'utf8');
+  assert.match(appSource, /autoBrakeFrames = \[0, 1, 2, 9, 10, 11\]/);
+  assert.match(appSource, /dx > 16/);
+  assert.match(appSource, /simulation\.command\('side-release', true\)/);
+  assert.match(appSource, /simulation\.command\('side-release', false\)/);
+  assert.match(appSource, /makeNeedle\('speedNeedle'/);
+  assert.match(appSource, /makeStateSprite\('locomotive-signal'/);
 });
