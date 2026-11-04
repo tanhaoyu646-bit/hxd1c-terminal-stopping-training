@@ -1,12 +1,15 @@
 import {
   BRAKE_POSITIONS,
   SCENARIO,
+  DYNAMIC_BRAKE_MAX,
+  TRACTION_MAX,
   lkjControlLimit,
   phaseAt,
   remainingToTarget,
   signalAt,
   trainingBand,
-} from './terminalStoppingConfig.js?v=terminal-station-7';
+  tractionTargetSpeed,
+} from './terminalStoppingConfig.js?v=terminal-station-8';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -29,18 +32,28 @@ export class TerminalStoppingSimulation extends EventTarget {
       speed: SCENARIO.initialSpeed,
       acceleration: 0,
       traction: SCENARIO.initialTraction,
+      tractionTargetSpeed: tractionTargetSpeed(SCENARIO.initialTraction),
+      balanceSpeed: tractionTargetSpeed(SCENARIO.initialTraction),
       direction: 'F',
       autoBrake: 0,
       independentBrake: 0,
       sideRelease: false,
       equalizingReservoir: 600,
       trainPipe: 600,
+      tailPipe: 600,
       brakeCylinder: 0,
       locomotiveCylinder: 0,
+      mainReservoir: 900,
+      netVoltage: 2500,
+      tractionCurrent: 0,
+      tractionForce: 0,
+      electricBrakeForce: 0,
       signal: signalAt(0),
       phase: phaseAt(0),
       targetBand: trainingBand(SCENARIO.targetDistance),
       lkjLimit: lkjControlLimit(0),
+      lkjLineLimit: 80,
+      lkjModeLimit: lkjControlLimit(0),
       lkjLevel: 'normal',
       lkjAcknowledged: true,
       lkjForcedBrake: 0,
@@ -80,9 +93,12 @@ export class TerminalStoppingSimulation extends EventTarget {
     };
 
     if (type === 'traction') {
-      const next = clamp(Math.round(Number(value) || 0), -8, 7);
+      const next = clamp(Math.round(Number(value) || 0), -DYNAMIC_BRAKE_MAX, TRACTION_MAX);
       if (s.stopped && next !== 0) this.log('restart-attempt', { value: next });
-      if (!s.stopped) s.traction = next;
+      if (!s.stopped) {
+        s.traction = next;
+        s.tractionTargetSpeed = tractionTargetSpeed(next);
+      }
       if (next < 0 && s.speed > 1) this.log('electric-brake-use', { value: next });
     } else if (type === 'auto-brake') {
       s.autoBrake = clamp(Math.round(Number(value) || 0), 0, 5);
@@ -124,10 +140,26 @@ export class TerminalStoppingSimulation extends EventTarget {
         s.lkjForcedBrake = 0;
         this.log('lkj-relief', { accepted: true });
       } else this.log('lkj-relief', { accepted: false });
+    } else if (type === 'cir-action') {
+      this.log('cir-action', { action: value });
+    } else if (type === 'horn-start' || type === 'horn-stop') {
+      s.hornActive = type === 'horn-start';
+      this.log(type);
+    } else if (type === 'lkj-start-align') {
+      this.log('lkj-start-align');
+    } else if (type === 'lkj-position-correct') {
+      this.log('lkj-position-correct', { method: value || 'auto' });
+    } else if (type === 'lkj-mark') {
+      this.log('lkj-mark');
+    } else if (type === 'lkj-patrol') {
+      this.log('lkj-patrol');
     } else return false;
 
     if (['traction', 'auto-brake', 'independent-brake', 'side-release'].includes(type)) {
       const key = type === 'auto-brake' ? 'autoBrake' : type === 'independent-brake' ? 'independentBrake' : type === 'side-release' ? 'sideRelease' : 'traction';
+      const before = type === 'side-release' ? Number(previous.sideRelease) : Number(previous[key]);
+      const after = type === 'side-release' ? Number(s.sideRelease) : Number(s[key]);
+      if (before === after) return false;
       this.log(type, { value: s[key], previous });
     }
     this.maybeCompleteSecure();
@@ -151,6 +183,7 @@ export class TerminalStoppingSimulation extends EventTarget {
     const targetPipe = Math.max(0, 600 - requestedReduction);
     const pipeTau = targetPipe < s.trainPipe ? 5.4 : 14;
     s.trainPipe += (targetPipe - s.trainPipe) * (1 - Math.exp(-dt / pipeTau));
+    s.tailPipe += (s.trainPipe - s.tailPipe) * (1 - Math.exp(-dt / 2.2));
     s.equalizingReservoir += (targetPipe - s.equalizingReservoir) * (1 - Math.exp(-dt / 2.4));
     const automaticCylinder = clamp((600 - s.trainPipe) / 170 * 350, 0, 430);
     const independentCylinder = s.independentBrake * 62;
@@ -161,11 +194,15 @@ export class TerminalStoppingSimulation extends EventTarget {
     const previousDistance = s.distance;
     if (!s.stopped) {
       const speedMps = s.speed / 3.6;
+      const rollingResistance = s.speed > 0.2 ? 28_000 + speedMps * speedMps * 8 : 0;
       const tractionForce = s.traction > 0 && s.autoBrake === 0 && s.lkjForcedBrake === 0
         ? s.traction * 35_000 * clamp(1.08 - s.speed / 180, 0.45, 1)
         : 0;
       const electricBrake = s.traction < 0 ? Math.abs(s.traction) * 42_000 : 0;
-      const rollingResistance = s.speed > 0.2 ? 28_000 + speedMps * speedMps * 8 : 0;
+      s.tractionForce = tractionForce;
+      s.electricBrakeForce = electricBrake;
+      s.tractionCurrent = tractionForce / 550;
+      s.balanceSpeed = s.speed;
       const lowStageForce = automaticCylinder * 600;
       const highStageForce = Math.max(0, automaticCylinder - 110) * 4_000;
       const pneumaticForce = lowStageForce + highStageForce;
@@ -184,6 +221,7 @@ export class TerminalStoppingSimulation extends EventTarget {
     s.phase = phaseAt(s.distance, s.stopped);
     s.signal = signalAt(s.distance);
     s.lkjLimit = lkjControlLimit(s.distance);
+    s.lkjModeLimit = s.lkjLimit;
     this.updateWorkflow(previousDistance);
     this.updateLkjProtection();
 

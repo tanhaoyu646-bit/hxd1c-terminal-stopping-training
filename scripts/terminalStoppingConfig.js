@@ -2,12 +2,23 @@ export const PROJECT_ID = 'hxd1c-terminal-stopping-v1';
 
 export const CAB = Object.freeze({ width: 640, height: 480 });
 
+// 与“途中调速虚拟实训系统”保持同一主手柄级位定义：
+// 0位为零位，正向1—12级分别对应10—120 km/h速度给定。
+export const TRACTION_MAX = 12;
+export const DYNAMIC_BRAKE_MAX = 8;
+export const TRACTION_TARGET_SPEEDS = Object.freeze([0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]);
+
+export function tractionTargetSpeed(notch) {
+  return TRACTION_TARGET_SPEEDS[Math.max(0, Math.min(TRACTION_MAX, Math.round(Number(notch) || 0)))] || 0;
+}
+
 export const SCENARIO = Object.freeze({
   id: 'standardPassenger',
   title: '终到站一段制动精准对标',
   shortTitle: '终到对标',
   initialSpeed: 42,
   initialTraction: 1,
+  operatingGrade: 0,
   startOffset: 28650,
   targetDistance: 980,
   platformStart: 724,
@@ -18,6 +29,8 @@ export const SCENARIO = Object.freeze({
   lowSpeedPoint: 930,
   exitSignalDistance: 1511,
   finishDistance: 1002,
+  entryDistance: 347,
+  maximumEntrySpeed: 45,
   baselineSpeed: 40,
   baselineReduction: 50,
   targetTolerance: 0.5,
@@ -26,6 +39,24 @@ export const SCENARIO = Object.freeze({
   entrySignalName: '大山铺站进站信号机',
   targetName: '旅客列车停车位置标',
   routeLabel: '区间—大山铺站 Ⅰ 道',
+  lkj: Object.freeze({
+    lineName: '内宜线',
+    sectionCode: '226',
+    trainNumber: '57001',
+    trainKind: '客本',
+    trainWeight: 900,
+    carCount: 18,
+    trainLength: 42.0,
+    speedGrade: 80,
+    locomotive: 'HXD1C',
+    startKilometer: 225.744,
+  }),
+  lineLimits: Object.freeze([
+    Object.freeze({ start: -1_000, end: 1_600, limit: 80 }),
+  ]),
+  controlTargets: Object.freeze([
+    Object.freeze({ distance: 1_511, speed: 0, holdUntil: 1_560, serviceDeceleration: 0.56 }),
+  ]),
   sourcePlatform: {
     shape: 'platform-300m-no-awning.s',
     uid: 50695,
@@ -82,7 +113,7 @@ export function phaseAt(distance, stopped = false) {
 }
 
 export function signalAt(distance) {
-  if (distance >= SCENARIO.platformStart - 100) return SCENARIO.signals[1];
+  if (distance >= SCENARIO.signals[0].distance) return SCENARIO.signals[1];
   return SCENARIO.signals[0];
 }
 
@@ -104,9 +135,18 @@ export function trainingBand(remaining) {
   return { target, minimum: Math.max(0, target - tolerance), maximum: target + tolerance };
 }
 
-export function lkjControlLimit(distance) {
+export function lkjControlLimit(scenarioOrDistance, optionalDistance) {
+  const distance = optionalDistance == null ? scenarioOrDistance : optionalDistance;
   const remaining = Math.max(0, SCENARIO.exitSignalDistance - distance);
   const serviceDeceleration = 0.56;
   const curve = Math.sqrt(2 * serviceDeceleration * remaining) * 3.6;
   return Math.max(0, Math.min(80, curve));
+}
+
+export function routeFacilitiesForScenario() {
+  return [];
+}
+
+export function absoluteKilometerAt(scenario, distance) {
+  return (scenario.lkj?.startKilometer || 0) + Math.max(0, Number(distance) || 0) / 1000;
 }

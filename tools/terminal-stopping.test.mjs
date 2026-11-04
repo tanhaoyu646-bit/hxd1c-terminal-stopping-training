@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { SCENARIO, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
+import { SCENARIO, TRACTION_MAX, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
 import { TerminalStoppingSimulation } from '../scripts/terminalStoppingSimulation.js';
 import { TerminalStoppingAssessment } from '../scripts/terminalStoppingAssessment.js';
 import {
@@ -210,12 +210,23 @@ test('手机端只加载站场裁剪资源且轨道几何限制在终到窗口',
   assert.match(appSource, /await routeScene\.loadPromise/);
 });
 
-test('操作台沿用原HXD1C档位贴图、动态仪表和单阀右滑单缓', () => {
+test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', () => {
   const appSource = readFileSync(new URL('../scripts/terminalStoppingApp.js', import.meta.url), 'utf8');
+  const lkjSource = readFileSync(new URL('../scripts/lkjRuntime.js', import.meta.url), 'utf8');
+  const cirSource = readFileSync(new URL('../scripts/cirRuntime.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.equal(TRACTION_MAX, 12);
   assert.match(appSource, /autoBrakeFrames = \[0, 1, 2, 9, 10, 11\]/);
+  assert.match(appSource, /new CirRuntime\(simulation\)/);
+  assert.match(appSource, /makePhysical\('打开CIR机车综合无线通信设备'/);
   assert.match(appSource, /dx > 16/);
   assert.match(appSource, /simulation\.command\('side-release', true\)/);
   assert.match(appSource, /simulation\.command\('side-release', false\)/);
   assert.match(appSource, /makeNeedle\('speedNeedle'/);
   assert.match(appSource, /makeStateSprite\('locomotive-signal'/);
+  assert.match(lkjSource, /lkj-native-monitor/);
+  assert.match(lkjSource, /routeFacilitiesForScenario/);
+  assert.match(cirSource, /CIR-simulator\.html/);
+  assert.match(cirSource, /tail-query/);
+  assert.match(html, /data-mobile-command="cir"/);
 });

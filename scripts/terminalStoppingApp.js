@@ -1,8 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO } from './terminalStoppingConfig.js?v=terminal-station-7';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-7';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-7';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-7';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-7';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-8';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-8';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-8';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-8';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-8';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-8';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -10,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-7';
+} from './terminalStoppingCandidate.js?v=terminal-station-8';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -24,6 +25,7 @@ let simulation = new TerminalStoppingSimulation('training');
 let assessment = new TerminalStoppingAssessment(simulation);
 let routeScene = null;
 let lkj = new LkjRuntime($('#lkj-dock'), simulation);
+let cir = new CirRuntime(simulation);
 let selectedView = 'front';
 let lastFrame = performance.now();
 let resultShown = false;
@@ -34,8 +36,17 @@ let audioContext = null;
 let lastAlertLevel = 'normal';
 let currentCandidate = loadCandidateDraft();
 let currentAttempt = null;
+let hornPointerId = null;
+const hornAudio = new Audio('./assets/audio/HXD1C-horn.wav');
+hornAudio.preload = 'auto';
+hornAudio.loop = true;
 const overlay = $('#cab-overlay');
 const elements = {};
+const mobileLike = matchMedia('(pointer: coarse)').matches
+  || matchMedia('(max-height:620px) and (orientation:landscape)').matches
+  || navigator.maxTouchPoints > 0
+  || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+if (mobileLike) document.body.classList.add('mobile-controls-enabled');
 
 function syncVisualViewport() {
   const viewport = window.visualViewport;
@@ -121,6 +132,26 @@ function makeStateSprite(id, image, x, y, width, height, columns, rows) {
   return element;
 }
 
+function makeBar(id, x, y, width, height, color) {
+  const element = document.createElement('div');
+  element.className = 'cab-gauge-bar';
+  Object.assign(element.style, {
+    left: pct(x, CAB.width), top: pct(y, CAB.height), width: pct(width, CAB.width), height: pct(height, CAB.height), backgroundColor: color,
+  });
+  overlay.append(element);
+  elements[id] = element;
+  return element;
+}
+
+function makeDigital(id, x, y, width, height, className = '') {
+  const element = document.createElement('div');
+  element.className = `cab-digital ${className}`;
+  Object.assign(element.style, { left: pct(x, CAB.width), top: pct(y, CAB.height), width: pct(width, CAB.width), height: pct(height, CAB.height) });
+  overlay.append(element);
+  elements[id] = element;
+  return element;
+}
+
 function setNeedle(element, value, maximum) {
   if (!element) return;
   const ratio = clamp(Number(value) / maximum, 0, 1);
@@ -134,7 +165,7 @@ function frame(element, index, columns, rows) {
 }
 
 function tractionFrame(value) {
-  return value > 0 ? Math.max(0, 7 - Math.min(7, value)) : value === 0 ? 7 : Math.min(15, 7 + Math.min(8, Math.abs(value)));
+  return value > 0 ? Math.max(0, 7 - Math.round(Math.min(TRACTION_MAX, value) / TRACTION_MAX * 7)) : value === 0 ? 7 : Math.min(15, 7 + Math.min(8, Math.abs(value)));
 }
 
 function createCabControls() {
@@ -160,17 +191,36 @@ function createCabControls() {
   elements.sideRelease.addEventListener('pointercancel', endSideRelease);
   makePhysical('放大LKJ监控装置', 210, 226, 101, 94, () => lkj.show(), 'lkj-hotspot');
 
+  makeDigital('speedDigital', 229, 251, 20, 7, 'speed');
+  makeDigital('limitDigital', 244, 251, 20, 7, 'limit');
+  makeDigital('clockDigital', 230, 268, 45, 10, 'clock');
   makeNeedle('speedNeedle', 'HXD1C_SDZ.png', 493, 277, 3, 18, 2, 68, 300);
   makeNeedle('mainNeedle', 'HXD1C_red.png', 154, 253, 7, 21, 14, 230, 100);
   makeNeedle('pipeNeedle', 'HXD1C_black.png', 154, 253, 7, 21, 14, 230, 130);
   makeNeedle('equalizingNeedle', 'HXD1C_black.png', 162, 295, 7, 21, 14, 224, 136);
   makeNeedle('cylinderNeedle', 'HXD1C_red.png', 162, 295, 7, 21, 14, 230, 130);
   makeStateSprite('locomotive-signal', 'HXD1C_jx.png', 540, 0, 100, 162, 4, 2);
+  makeStateSprite('pantograph-state', 'HXD1C_DG.png', 410, 295, 7, 8, 1, 2);
+  makeBar('voltageBar', 351, 266, 4, 30, '#56e9aa');
+  elements.currentBars = [362, 370, 381, 388].map((x, index) => makeBar(`currentBar${index}`, x, 266, 4, 30, '#66e9e8'));
+  makePhysical('警惕复位', 386, 312, 32, 32, () => simulation.command('lkj-ack'), 'reset-hotspot');
+  makePhysical('查看机车信号', 540, 0, 100, 162, () => lkj.show(), 'signal-hotspot');
+  makePhysical('打开CIR机车综合无线通信设备', 606, 276, 34, 118, () => { lkj.close(); cir.open(); }, 'cir-hotspot');
+  elements.horn = makePhysical('按住鸣笛', 577, 408, 37, 39, () => {}, 'horn-hotspot');
+  elements.horn.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    hornPointerId = event.pointerId;
+    elements.horn.classList.add('pressed');
+    simulation.command('horn-start');
+    hornAudio.currentTime = 0;
+    hornAudio.play().catch(() => {});
+    try { elements.horn.setPointerCapture(event.pointerId); } catch { /* window listener releases the horn. */ }
+  });
 
   const controls = [
     ['auto', elements.auto, 0, 5],
     ['independent', elements.independent, 0, 5],
-    ['traction', elements.traction, -8, 7],
+    ['traction', elements.traction, -8, TRACTION_MAX],
   ];
   for (const [id, sprite, min, max] of controls) {
     const begin = (event) => {
@@ -248,8 +298,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-7', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-7', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-8', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-8', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
@@ -270,8 +320,11 @@ async function chooseMode(mode) {
   simulation = new TerminalStoppingSimulation(mode);
   assessment = new TerminalStoppingAssessment(simulation);
   lkj.simulation = simulation;
+  lkj.setCandidate(currentAttempt);
+  lkj.setRouteSampler(() => ({ grade: 0, curve: 0 }));
   lkj.page = 'main';
   lkj.menuIndex = 0;
+  cir.setSimulation(simulation);
   routeScene?.dispose?.();
   const oldCanvas = $('#route-scene');
   const newCanvas = oldCanvas.cloneNode(false);
@@ -295,7 +348,8 @@ async function chooseMode(mode) {
     : '考核模式只显示已记录项目，不提示下一步和阈值。';
   $('#mode-picker').classList.remove('open');
   $('#result-modal').classList.remove('open');
-  $('#lkj-dock').classList.remove('open');
+  lkj.close();
+  cir.close();
   selectedView = 'front';
   selectView('front');
   try {
@@ -320,6 +374,7 @@ function selectView(view) {
   selectedView = view;
   $('#cab-view').src = `./assets/archive-cabview/${views[view]}`;
   overlay.classList.toggle('hidden', view !== 'front');
+  if (view !== 'front') cir.close();
   document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
   routeScene?.setView(view);
 }
@@ -331,14 +386,20 @@ function render() {
   frame(elements.traction, tractionFrame(s.traction), 2, 8);
   frame(elements.direction, s.direction === 'R' ? 0 : s.direction === 'N' ? 1 : 2, 3, 1);
   frame(elements['locomotive-signal'], signalFrames[s.signal?.aspect] ?? signalFrames.yellow, 4, 2);
+  frame(elements['pantograph-state'], 1, 1, 2);
   setNeedle(elements.speedNeedle, s.speed, 158);
-  setNeedle(elements.mainNeedle, 1_000, 1_600);
+  setNeedle(elements.mainNeedle, s.mainReservoir, 1_600);
   setNeedle(elements.pipeNeedle, s.trainPipe, 1_000);
   setNeedle(elements.equalizingNeedle, s.equalizingReservoir, 1_600);
   setNeedle(elements.cylinderNeedle, s.locomotiveCylinder, 1_600);
+  elements.speedDigital.textContent = s.speed < 10 ? s.speed.toFixed(1) : s.speed.toFixed(0);
+  elements.limitDigital.textContent = s.lkjLimit.toFixed(0);
+  elements.clockDigital.textContent = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+  elements.voltageBar.style.transform = `scaleY(${clamp(s.netVoltage / 3800, .02, 1)})`;
+  elements.currentBars.forEach((bar, index) => { bar.style.transform = `scaleY(${clamp((s.tractionCurrent - index * 18) / (index < 2 ? 1000 : 800), .02, 1)})`; });
   elements.autoBadge.querySelector('span').textContent = brakeNames[s.autoBrake];
   elements.independentBadge.querySelector('span').textContent = s.independentBrake ? `${s.independentBrake}级` : '缓解位';
-  elements.tractionBadge.querySelector('span').textContent = s.traction > 0 ? `牵引 ${s.traction}.0级` : s.traction < 0 ? `电制 ${Math.abs(s.traction)}级` : '零位';
+  elements.tractionBadge.querySelector('span').textContent = s.traction > 0 ? `牵引 ${s.traction}级` : s.traction < 0 ? `电制 ${Math.abs(s.traction)}级` : '零位';
   elements.directionBadge.querySelector('span').textContent = s.direction === 'F' ? '前进位' : s.direction === 'R' ? '后退位' : '中立位';
   elements.sideRelease.classList.toggle('active', s.sideRelease);
   elements.sideRelease.querySelector('span').textContent = s.sideRelease ? '已单缓' : '未动作';
@@ -357,6 +418,7 @@ function render() {
   renderProgress(progress);
   renderData(s);
   updateMobileLabels(s);
+  if (cir.root.classList.contains('open')) cir.render();
   if (lkj.open) lkj.render();
   if (s.lkjLevel !== lastAlertLevel && s.lkjLevel !== 'normal') alertTone(s.lkjLevel);
   lastAlertLevel = s.lkjLevel;
@@ -379,6 +441,9 @@ function renderData(s) {
 
 function updateMobileLabels(s) {
   elements.sideRelease?.setAttribute('aria-pressed', String(s.sideRelease));
+  $('[data-mobile-traction]')?.replaceChildren(elements.tractionBadge.querySelector('span').textContent);
+  $('[data-mobile-auto]')?.replaceChildren(brakeNames[s.autoBrake]);
+  $('[data-mobile-independent]')?.replaceChildren(s.independentBrake ? `${s.independentBrake}级` : '缓解位');
 }
 
 function formatError(error) {
@@ -499,6 +564,37 @@ $('#callout').addEventListener('click', () => simulation.command('callout'));
 $('#progress-toggle').addEventListener('click', () => togglePanel($('#progress-panel')));
 $('#rules-toggle').addEventListener('click', () => togglePanel($('#rules-panel')));
 $('#data-toggle').addEventListener('click', () => togglePanel($('#data-panel')));
+$('#mobile-operations-toggle').addEventListener('click', () => {
+  const panel = $('#mobile-operations');
+  const open = !panel.classList.contains('open');
+  panel.classList.toggle('open', open);
+  panel.setAttribute('aria-hidden', String(!open));
+  $('#mobile-operations-toggle').setAttribute('aria-expanded', String(open));
+});
+$('[data-mobile-close]').addEventListener('click', () => $('#mobile-operations-toggle').click());
+document.querySelectorAll('[data-mobile-command]').forEach((button) => button.addEventListener('click', () => {
+  const action = button.dataset.mobileCommand;
+  const s = simulation.state;
+  if (action === 'traction-down') simulation.command('traction', Math.max(-8, s.traction - 1));
+  else if (action === 'traction-zero') simulation.command('traction', 0);
+  else if (action === 'traction-up') simulation.command('traction', Math.min(TRACTION_MAX, s.traction + 1));
+  else if (action === 'auto-down') simulation.command('auto-brake', Math.max(0, s.autoBrake - 1));
+  else if (action === 'auto-up') simulation.command('auto-brake', Math.min(5, s.autoBrake + 1));
+  else if (action === 'independent-down') simulation.command('independent-brake', Math.max(0, s.independentBrake - 1));
+  else if (action === 'independent-up') simulation.command('independent-brake', Math.min(5, s.independentBrake + 1));
+  else if (action === 'side-release') {
+    simulation.command('side-release', true);
+    setTimeout(() => simulation.command('side-release', false), 350);
+  } else if (action === 'lkj') {
+    $('#mobile-operations-toggle').click();
+    cir.close();
+    lkj.show();
+  } else if (action === 'cir') {
+    $('#mobile-operations-toggle').click();
+    lkj.close();
+    cir.open();
+  }
+}));
 $('#view-toggle').addEventListener('click', () => $('#view-menu').classList.toggle('open'));
 document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => { selectView(button.dataset.view); $('#view-menu').classList.remove('open'); }));
 document.querySelectorAll('[data-close-panel]').forEach((button) => button.addEventListener('click', () => togglePanel(button.closest('.side-panel'))));
@@ -522,12 +618,24 @@ window.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     document.querySelectorAll('.side-panel').forEach((panel) => panel.classList.remove('open'));
     $('#view-menu').classList.remove('open');
+    cir.close();
     lkj.close();
   }
   if (event.key === '0') simulation.command('traction', 0);
   if (event.key === 'ArrowUp') changeAuto(1);
   if (event.key === 'ArrowDown') changeAuto(-1);
 });
+
+function stopHorn(event) {
+  if (hornPointerId === null || (event?.pointerId != null && event.pointerId !== hornPointerId)) return;
+  hornPointerId = null;
+  hornAudio.pause();
+  hornAudio.currentTime = 0;
+  elements.horn?.classList.remove('pressed');
+  simulation.command('horn-stop');
+}
+window.addEventListener('pointerup', stopHorn);
+window.addEventListener('pointercancel', stopHorn);
 
 window.__terminalStopping = {
   get simulation() { return simulation; },

@@ -8,7 +8,6 @@
   --amber: #f0c457;
   --red: #ff6671;
 }
-
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; overflow: hidden; background: #050b10; }
@@ -36,7 +35,6 @@ button, .sprite { touch-action: none; }
   place-items: center;
   background: radial-gradient(circle at 50% 28%, #183544, #050b10 70%);
 }
-
 .stage {
   position: relative;
   width: 100vw;
@@ -47,7 +45,6 @@ button, .sprite { touch-action: none; }
   background: #07131c;
   isolation: isolate;
 }
-
 #route-scene, .cab-view, .cab-overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
 #route-scene { z-index: 0; background: #9fb5bd; }
 .cab-view { z-index: 2; object-fit: fill; pointer-events: none; user-select: none; }
@@ -65,7 +62,6 @@ button, .sprite { touch-action: none; }
   justify-content: flex-end;
   pointer-events: none;
 }
-
 .toolbar-button {
   min-height: 46px;
   padding: .62em 1em;
@@ -342,4 +338,63 @@ button, .sprite { touch-action: none; }
   .candidate-card h1 { font-size: 24px; }
   .candidate-fields { grid-template-columns: 1fr; }
   .stage::after { content: "请旋转至横屏进行终到对标实训"; position: fixed; z-index: 200; inset: 0; display: grid; place-items: center; padding: 32px; background: #06131d; color: #d8f6ff; text-align: center; font-size: 20px; }
+}
+
+/* 与“途中调速虚拟实训系统”对齐的操作台仪表、LKJ原机界面和CIR。 */
+.physical-control{z-index:8;border:1px dashed transparent;background:transparent;cursor:pointer}
+.physical-control:focus-visible{border-color:#8be7ff;background:#40c9ff28;outline:0}
+.physical-control.pressed{background:#4ad0ff66}
+.cab-needle,.cab-gauge-bar,.cab-digital{position:absolute;z-index:5;display:block;pointer-events:none}
+.cab-needle{object-fit:fill;filter:drop-shadow(0 1px 1px #0009)}
+.cab-gauge-bar{transform-origin:50% 100%;box-shadow:0 0 2px currentColor}
+.cab-digital{display:flex;align-items:center;justify-content:center;overflow:hidden;color:#72f778;font-family:Consolas,monospace;font-size:clamp(4px,.83vw,15px);font-weight:700;line-height:1;text-shadow:0 0 2px #001800}
+.cab-digital.limit{color:#f34451}.cab-digital.clock{justify-content:flex-start;color:#8ee9f8;font-size:clamp(4px,.6vw,11px)}
+.locomotive-signal,.pantograph-state{pointer-events:none}
+
+/* LKJ 主界面使用原设备800×615坐标；动态曲线、线路与状态共用仿真数据。 */
+.lkj-screen{position:absolute;inset:0;overflow:hidden;background:transparent;pointer-events:none;color:#111;font-family:SimSun,"宋体",serif}
+.lkj-native-base{position:absolute;inset:0;width:100%;height:100%;display:block}.lkj-keypad{z-index:4;pointer-events:none}.lkj-keypad button{pointer-events:auto;touch-action:manipulation}
+.lkj-native-aspect{position:absolute;z-index:3;left:.6%;top:.5%;width:7.7%;height:8.7%;border-radius:50%;background:#050505;box-shadow:inset 0 0 4px #000,0 0 4px currentColor}
+.lkj-native-aspect.green{background:#18ea30}.lkj-native-aspect.yellow{background:#ffe900}.lkj-native-aspect.green-yellow{background:linear-gradient(#20e841 50%,#ffe500 50%)}.lkj-native-aspect.double-yellow{background:linear-gradient(90deg,#ffe500 50%,#f5df13 50%)}.lkj-native-aspect.red{background:#f31a19}
+.lkj-speed-grade{position:absolute;z-index:3;left:8.2%;top:.4%;width:5%;height:8.8%;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;background:#a7a7a7;color:#525252;font:700 clamp(4px,.38vw,7px)/1 Arial;text-align:center}.lkj-speed-grade span{display:grid;place-items:center;border:1px solid #c5c5c5}.lkj-speed-grade span.active{background:#fff;color:#111}
+.lkj-native-speed,.lkj-native-limit,.lkj-native-distance,.lkj-native-station,.lkj-native-km,.lkj-native-date,.lkj-native-time{position:absolute;z-index:3;display:grid;place-items:center;margin:0;background:#000;line-height:1;font-weight:500;font-family:"Times New Roman",SimSun,serif}
+.lkj-native-speed{left:17%;top:.3%;width:9.4%;height:8.7%;color:#16f64a;font-size:clamp(12px,1.3vw,26px)}.lkj-native-limit{left:33.3%;top:.3%;width:9.4%;height:8.7%;color:#ff1d19;font-size:clamp(12px,1.3vw,26px)}.lkj-native-distance{left:50.4%;top:.3%;width:11.7%;height:8.7%;color:#fff000;font-size:clamp(12px,1.3vw,26px)}
+.lkj-native-station{left:67.2%;top:.3%;width:16.1%;height:3.9%;overflow:hidden;color:#c5c5c5;font-size:clamp(5px,.52vw,10px);white-space:nowrap}.lkj-native-km{left:67.2%;top:4.7%;width:16.1%;height:4.1%;color:#fff000;font-size:clamp(7px,.8vw,15px)}.lkj-native-date{left:83.8%;top:.3%;width:15.8%;height:4.1%;color:#ddd;font-size:clamp(5px,.55vw,10px)}.lkj-native-time{left:83.8%;top:4.7%;width:15.8%;height:4.1%;color:#fff;font-size:clamp(6px,.72vw,14px)}
+.lkj-native-monitor,.lkj-native-monitor svg{position:absolute;inset:0;width:100%;height:100%}.lkj-native-monitor svg{z-index:1;pointer-events:none}.lkj-native-monitor polyline{fill:none;vector-effect:non-scaling-stroke}.lkj-speed-scale-bg{fill:#aaa}.lkj-speed-tick>line:not(.lkj-speed-grid){stroke:#111;stroke-width:1}.lkj-speed-tick text{fill:#111;font:16px "Times New Roman",SimSun,serif;text-anchor:end}.lkj-speed-grid{stroke:#303030;stroke-width:.65;opacity:.72}.lkj-native-limit-line{stroke:#e31c20;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.lkj-native-limit-value{fill:#ffe600;font:16px "Times New Roman",SimSun,serif;paint-order:stroke;stroke:#000;stroke-width:2}.lkj-native-position-line{stroke:#ffe900;stroke-width:1.8}.lkj-native-speed-line{stroke:#e33cff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.lkj-signal-marker line{stroke:#ddd;stroke-width:1;stroke-dasharray:2 4}.lkj-signal-marker circle{fill:#fff;stroke:#111}.lkj-signal-marker text,.lkj-window-label{fill:#ddd;font:8px SimSun,"宋体",serif}.lkj-window-label{opacity:.7}
+.lkj-grade-line{stroke:#fff;stroke-width:1.4}.lkj-grade-zero{stroke:#5050ff;stroke-width:1}.lkj-curve-line{stroke:#3ef0f5;stroke-width:1.4}.lkj-facility rect{stroke-width:1;opacity:.85}.lkj-facility.bridge rect{fill:#7b5522;stroke:#ffc34c}.lkj-facility.tunnel rect{fill:#39274f;stroke:#c59cff}.lkj-facility text{fill:#fff;font:9px SimSun,"宋体",serif}.lkj-train-icon{fill:#f13cff;stroke:#fff;stroke-width:.7}.lkj-train-head{fill:#ffe900;stroke:#111}
+.lkj-native-equipment{position:absolute;z-index:2;left:68.2%;top:10.7%;width:26.5%;padding:.5%;border:1px solid #fff;background:#0717d7;color:#fff;font-size:clamp(4px,.41vw,8px);line-height:1.35}.lkj-native-equipment b{display:flex;justify-content:space-between;gap:3px;font-weight:600;white-space:nowrap}.lkj-native-equipment em{font-style:normal}.lkj-native-equipment small{display:block;margin-top:3px;color:#ffef65;text-align:center}
+.lkj-native-status{position:absolute;z-index:2;left:24%;bottom:19.5%;padding:.35% .8%;border:1px solid #777;background:#bdbdbd;color:#222;font-size:clamp(5px,.58vw,11px)}.level-warning .lkj-native-status,.level-unload .lkj-native-status{background:#ffe44d}.level-service .lkj-native-status,.level-emergency .lkj-native-status{background:#f04444;color:#fff;animation:blink .5s infinite}
+.lkj-state-lamps{position:absolute;z-index:3;left:94.45%;top:10.1%;width:5.2%;height:70.8%;display:grid;grid-template-rows:repeat(15,1fr);pointer-events:none}.lkj-state-lamps span{display:grid;place-items:center;overflow:hidden;background:#b9b9b9;color:#4c4c4c;font-size:clamp(4px,.43vw,8px);line-height:1;white-space:nowrap;border:1px solid #e8e8e8}.lkj-state-lamps span.active{background:#51efdf;color:#001b24;font-weight:700}.lkj-state-lamps span.active.emergency,.lkj-state-lamps span.active.service{background:#ff3131;color:#fff}.lkj-state-lamps span.active.unload{background:#ffe847}
+.lkj-native-dialog{position:absolute;z-index:2;left:22%;top:17%;width:65%;min-height:52%;padding:1.5%;border:2px ridge #fff;background:#c7c7c7;color:#111;font-size:clamp(6px,.62vw,11px);box-shadow:4px 5px 0 #0008}.lkj-native-dialog header{margin:-2.4% -2.4% 1.6%;padding:1% 2%;background:#0717d7;color:#fff;font-weight:700}.lkj-native-dialog footer{margin-top:1.5%;padding-top:1%;border-top:1px solid #777;color:#333;text-align:center}.lkj-query-dialog ol{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin:0;padding:0;list-style:none}.lkj-query-dialog li{display:flex;gap:8px;padding:2.2%;border:1px solid #888;background:#eee}.lkj-query-dialog li.selected{background:#b7211b;color:#fff}.lkj-query-dialog li b{width:1.4em}.lkj-detail-dialog dl{display:grid;grid-template-columns:1fr 1fr;gap:2px;margin:0}.lkj-detail-dialog dl div{display:flex;justify-content:space-between;gap:8px;padding:1.5%;border:1px solid #999;background:#dedede}.lkj-detail-dialog dt{color:#333}.lkj-detail-dialog dd{margin:0;font-weight:700;text-align:right}.lkj-record-dialog ul{margin:0;padding:0;list-style:none}.lkj-record-dialog li{display:grid;grid-template-columns:1.5fr .7fr 1fr;padding:1%;border-bottom:1px solid #888}.lkj-record-dialog em{text-align:right;font-style:normal}
+.lkj-notice{position:absolute;z-index:5;left:25%;right:25%;top:42%;padding:2.5%;border:2px ridge #fff;background:#c7c7c7;color:#111;text-align:center;font-size:clamp(8px,.8vw,14px)}.lkj-close{top:10%;right:.7%;width:5.3%;z-index:6;font-size:clamp(9px,.7vw,13px)}
+
+
+.cir-modal{position:fixed;z-index:1000;inset:0;display:none;place-items:center;padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));background:#01070bdf}
+.cir-modal.open{display:grid}.cir-device{width:min(1200px,98vw);height:min(760px,96dvh);overflow:hidden;border:1px solid #59c7ec;border-radius:10px;background:#071923;box-shadow:0 24px 90px #000}
+.cir-device>header{height:48px;display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #326783}.cir-device>header b{font-size:15px}.cir-close{width:38px;height:34px;border:1px solid #a7545d;border-radius:6px;background:#371a21;font-size:24px}
+.cir-layout{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(230px,.8fr);gap:10px;height:calc(100% - 48px);padding:10px;background:#040d14}.cir-frame-wrap{position:relative;min-width:0;min-height:0;overflow:hidden;border:1px solid #2f7fa9;border-radius:8px;background:#000}.cir-frame{position:absolute;left:50%;top:50%;width:918px;height:600px;border:0;background:#000;transform-origin:center;transform:translate(-50%,-50%) scale(var(--cir-scale,1))}.cir-loading{position:absolute;inset:0;display:grid;place-items:center;color:#8ab5c9;font-size:12px}.cir-loading[hidden]{display:none}
+.cir-status{padding:13px;border:1px solid #286480;border-radius:8px;background:#071b28;overflow:auto}.cir-status h3{margin:0 0 9px;font-size:15px}.cir-status dl{margin:0}.cir-status dl div{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #21495e;font-size:12px}.cir-status dt{color:#8fb8ca}.cir-status dd{margin:0;color:#78efae;font-weight:700}.cir-status p{line-height:1.55;color:#b7d8e7;font-size:12px}
+.mobile-only,.mobile-operations{display:none}
+
+@media(max-height:620px) and (orientation:landscape){
+  .stage{width:100vw;height:100dvh;max-width:none;max-height:none}
+  .toolbar{top:env(safe-area-inset-top);right:max(4px,env(safe-area-inset-right));width:auto;max-width:96%;gap:4px}.toolbar-button{min-height:36px;padding:5px 7px;font-size:clamp(9px,1.2vw,13px)}.icon-button{width:36px}
+  .control-position-badge{min-height:28px;padding:2px 4px}.control-position-badge b{font-size:9px}.control-position-badge span{font-size:10px}
+  .side-panel{position:fixed;top:46px;right:max(4px,env(safe-area-inset-right));width:min(380px,65vw);max-height:calc(100dvh - 55px)}
+  .lkj-dock{width:min(92vw,calc(93dvh * 800 / 615));max-height:93dvh}.lkj-native-speed,.lkj-native-limit,.lkj-native-distance{font-size:clamp(18px,5.2vh,24px)}.lkj-native-equipment{font-size:clamp(4px,1.2vh,6px)}.lkj-native-station,.lkj-native-km,.lkj-native-date,.lkj-native-time{font-size:clamp(7px,1.8vh,11px)}
+  .cir-device{width:98vw;height:98dvh}.cir-device>header{height:36px}.cir-layout{height:calc(100% - 36px);grid-template-columns:minmax(0,2.5fr) minmax(170px,.75fr);gap:6px;padding:6px}.cir-status{padding:7px}.cir-status h3{font-size:12px}.cir-status dl div,.cir-status p{font-size:10px;padding:4px 0}
+  .mobile-only{display:block}.mobile-operations.open{position:fixed;z-index:90;left:max(4px,env(safe-area-inset-left));bottom:max(4px,env(safe-area-inset-bottom));display:block;width:min(390px,48vw);max-height:calc(100dvh - 42px);overflow:auto;padding:8px;border:1px solid #61c8ea;border-radius:10px;background:#061924f5;box-shadow:0 10px 35px #000e}
+  .mobile-operations header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.mobile-operations header b{font-size:12px}.mobile-operations header button{width:29px;height:27px;border:1px solid #97545c;border-radius:5px;background:#3d2028;font-size:20px}
+  .mobile-control-row{display:flex;align-items:center;gap:4px;margin:3px 0}.mobile-control-row span{flex:1;min-width:0;color:#a8ccdc;font-size:9px}.mobile-control-row b{display:block;color:#e8fbff;font-size:11px}.mobile-control-row button,.mobile-device-row button{min-width:33px;min-height:32px;padding:2px 5px;border:1px solid #4daed2;border-radius:5px;background:#124056;font-size:14px}.mobile-device-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.mobile-device-row button{font-size:10px}
+}
+
+/* 手机横屏LKJ保持左上角设备小窗，尺寸按实测参考图约占屏宽30%。 */
+@media(orientation:landscape) and (max-height:620px){
+  body.mobile-controls-enabled .lkj-dock{position:fixed;left:max(2px,env(safe-area-inset-left));top:max(2px,env(safe-area-inset-top));width:min(30vw,calc(54dvh * 800 / 615));max-height:none;transform:none;z-index:120}
+  body.mobile-controls-enabled .lkj-native-speed,body.mobile-controls-enabled .lkj-native-limit,body.mobile-controls-enabled .lkj-native-distance{font-size:clamp(11px,3.2vh,18px)}
+  body.mobile-controls-enabled .lkj-native-station,body.mobile-controls-enabled .lkj-native-km,body.mobile-controls-enabled .lkj-native-date,body.mobile-controls-enabled .lkj-native-time{font-size:clamp(5px,1.05vh,8px)}
+  body.mobile-controls-enabled .lkj-native-equipment{font-size:clamp(3px,.72vh,5px)}
+  body.mobile-controls-enabled .lkj-state-lamps{left:93.6%;width:6.1%}
+  body.mobile-controls-enabled .lkj-state-lamps span{font-size:clamp(3px,.8vh,5px);letter-spacing:-.04em}
+  body.mobile-controls-enabled .lkj-close{width:11%;font-size:clamp(11px,2.2vh,15px)}
 }
