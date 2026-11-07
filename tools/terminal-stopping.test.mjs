@@ -215,6 +215,7 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   const lkjSource = readFileSync(new URL('../scripts/lkjRuntime.js', import.meta.url), 'utf8');
   const cirSource = readFileSync(new URL('../scripts/cirRuntime.js', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../styles/terminal-stopping.css', import.meta.url), 'utf8');
   assert.equal(TRACTION_MAX, 12);
   assert.match(appSource, /autoBrakeFrames = \[0, 1, 2, 9, 10, 11\]/);
   assert.match(appSource, /new CirRuntime\(simulation\)/);
@@ -229,4 +230,22 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   assert.match(cirSource, /CIR-simulator\.html/);
   assert.match(cirSource, /tail-query/);
   assert.match(html, /data-mobile-command="cir"/);
+  assert.match(css, /\.sprite, \.control-position-badge, \.physical-control, \.touch-target \{ pointer-events: auto; \}/);
+  assert.match(appSource, /makePhysical\('放大LKJ监控装置'[\s\S]+?\(\) => lkj\.show\(\)/);
+});
+
+test('登录、沉浸式全屏与成绩入口沿用途中调速项目流程', () => {
+  const appSource = readFileSync(new URL('../scripts/terminalStoppingApp.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="candidate-submit"[\s\S]+?disabled/);
+  assert.match(html, /id="candidate-load-status"/);
+  assert.match(html, /id="landscape-gate"/);
+  assert.match(html, /class="training-app"[^>]+inert/);
+  assert.match(html, /id="result-name"/);
+  assert.match(html, /id="result-student-id"/);
+  assert.match(appSource, /async function enterImmersive\(\)/);
+  assert.match(appSource, /requestFullscreen\(\{ navigationUI: 'hide' \}\)/);
+  assert.match(appSource, /screen\.orientation\?\.lock\?\.\('landscape'\)/);
+  assert.match(appSource, /if \(mobileLike\) await enterImmersive\(\)/);
+  assert.match(appSource, /clearCandidateDraft\(\);[\s\S]+?location\.reload\(\)/);
 });

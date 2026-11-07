@@ -27,7 +27,20 @@ button, .sprite { touch-action: none; }
 .candidate-fields input[aria-invalid="true"] { border-color: #f07982; }
 .candidate-error { min-height: 20px; margin: 7px 0 3px; color: #ff9ba3; font-size: 11px; }
 .candidate-submit { width: 100%; min-height: 47px; margin-top: 8px; border: 1px solid #5ee3a2; border-radius: 8px; background: #116342; color: #fff; font-weight: 700; }
+.candidate-submit:disabled { cursor: wait; border-color: #456878; background: #17303b; color: #8faeba; }
+.candidate-load-status { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 9px 0 0; padding: 7px 10px; border: 1px solid #285f7b; border-radius: 8px; background: #04131e; color: #83cdec; font-size: 10px; text-align: center; }
+.candidate-load-status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #48b9e2; box-shadow: 0 0 9px #48b9e2; animation: blink .9s infinite; }
+.candidate-load-status[data-state="ready"] { border-color: #287a59; color: #73e5aa; }
+.candidate-load-status[data-state="ready"]::before { background: #5ce4a0; box-shadow: 0 0 9px #5ce4a0; animation: none; }
+.candidate-load-status[data-state="error"] { border-color: #8b4249; color: #ff9ba3; }
+.candidate-load-status[data-state="error"]::before { background: #ff6671; box-shadow: none; animation: none; }
 .candidate-card > small { display: block; margin-top: 10px; color: #7295a5; font-size: 10px; line-height: 1.55; text-align: center; }
+.landscape-gate { position: fixed; z-index: 4500; inset: 0; place-items: center; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); background: radial-gradient(circle at 50% 12%, #17485f 0, #06131d 62%, #02070b 100%); }
+.landscape-gate:not([hidden]) { display: grid; }
+.landscape-gate > div { width: min(460px, 92vw); padding: 26px; border: 1px solid #54c6e8; border-radius: 16px; background: #071b28f2; box-shadow: 0 24px 80px #000c; text-align: center; }
+.landscape-gate b { display: block; color: #effbff; font-size: 25px; }
+.landscape-gate p { margin: 13px 0; color: #9fc5d4; font-size: 13px; line-height: 1.7; }
+.landscape-gate button { width: 100%; min-height: 48px; border: 1px solid #62dfa2; border-radius: 8px; background: #116342; color: #fff; font-weight: 700; }
 
 .training-app {
   display: grid;
@@ -168,6 +181,7 @@ button, .sprite { touch-action: none; }
 .data-panel dd { margin: 3px 0 0; color: #f2fbff; font-weight: 700; }
 
 .sprite, .control-position-badge, .physical-control, .touch-target, .original-game-needle, .state-sprite { position: absolute; }
+.sprite, .control-position-badge, .physical-control, .touch-target { pointer-events: auto; }
 .sprite { z-index: 4; background-repeat: no-repeat; filter: drop-shadow(0 3px 2px #0009); }
 .original-game-needle { z-index: 6; pointer-events: none; }
 .state-sprite { z-index: 3; background-repeat: no-repeat; pointer-events: none; }
@@ -315,6 +329,7 @@ button, .sprite { touch-action: none; }
   .candidate-fields input { height: 38px; }
   .candidate-error { min-height: 15px; margin: 3px 0; font-size: 9px; }
   .candidate-submit { min-height: 38px; margin-top: 4px; }
+  .candidate-load-status { margin-top: 4px; padding: 4px 8px; font-size: 8px; }
   .candidate-card > small { margin-top: 5px; font-size: 8px; }
   .picker-card h1, .result-card h2 { margin: .15em 0; font-size: 27px; }
   .picker-card > p { margin: 7px 0; font-size: 11px; }

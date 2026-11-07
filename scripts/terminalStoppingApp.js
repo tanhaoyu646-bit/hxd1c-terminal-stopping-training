@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-8';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-8';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-8';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-8';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-8';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-8';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-9';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-9';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-9';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-9';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-9';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-9';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-8';
+} from './terminalStoppingCandidate.js?v=terminal-station-9';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -36,6 +36,10 @@ let audioContext = null;
 let lastAlertLevel = 'normal';
 let currentCandidate = loadCandidateDraft();
 let currentAttempt = null;
+let candidateAssetsReady = false;
+let candidateCabReady = false;
+let candidateLoadFailed = false;
+let candidateEntryComplete = false;
 let hornPointerId = null;
 const hornAudio = new Audio('./assets/audio/HXD1C-horn.wav');
 hornAudio.preload = 'auto';
@@ -52,6 +56,36 @@ function syncVisualViewport() {
   const viewport = window.visualViewport;
   document.documentElement.style.setProperty('--visual-height', `${Math.round(viewport?.height || window.innerHeight)}px`);
   document.documentElement.style.setProperty('--visual-offset-top', `${Math.round(viewport?.offsetTop || 0)}px`);
+}
+
+function isPortraitMobile() {
+  return mobileLike && matchMedia('(orientation: portrait)').matches;
+}
+
+function syncLandscapeGate() {
+  const gate = $('#landscape-gate');
+  if (!gate || !candidateEntryComplete) return;
+  gate.hidden = !isPortraitMobile();
+}
+
+async function enterImmersive() {
+  document.documentElement.classList.add('immersive');
+  $('#landscape-gate').hidden = true;
+  try {
+    const root = document.documentElement;
+    if (!document.fullscreenElement) {
+      if (root.requestFullscreen) await root.requestFullscreen({ navigationUI: 'hide' });
+      else if (root.webkitRequestFullscreen) await root.webkitRequestFullscreen();
+    }
+  } catch { /* iPhone Safari 等浏览器可能拒绝网页全屏，保留横屏提示作为回退。 */ }
+  try { await screen.orientation?.lock?.('landscape'); }
+  catch { /* iOS 和部分内置浏览器不支持方向锁定。 */ }
+  setTimeout(() => {
+    scrollTo(0, 1);
+    syncVisualViewport();
+    syncLandscapeGate();
+    routeScene?.resize?.();
+  }, 160);
 }
 syncVisualViewport();
 window.visualViewport?.addEventListener('resize', syncVisualViewport);
@@ -298,14 +332,14 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-8', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-8', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-9', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-9', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return response.arrayBuffer();
-  }))).catch(() => null);
+  }))).then(() => undefined);
   return routeWarmPromise;
 }
 
@@ -531,33 +565,90 @@ function openCandidateGate(clear = false) {
   $('#candidate-student-id').removeAttribute('aria-invalid');
   $('#candidate-gate').hidden = false;
   document.body.classList.add('candidate-entry-active');
+  $('.training-app').inert = true;
   requestAnimationFrame(() => $('#candidate-name').focus());
 }
 
 function closeCandidateGate() {
   $('#candidate-gate').hidden = true;
   document.body.classList.remove('candidate-entry-active');
+  $('.training-app').inert = false;
+}
+
+function updateCandidateGate() {
+  const validation = validateCandidate({
+    name: $('#candidate-name').value,
+    studentId: $('#candidate-student-id').value,
+  });
+  const hasInput = Boolean($('#candidate-name').value || $('#candidate-student-id').value);
+  $('#candidate-name').setAttribute('aria-invalid', String(hasInput && !validation.valid && validation.field === 'name'));
+  $('#candidate-student-id').setAttribute('aria-invalid', String(hasInput && !validation.valid && validation.field === 'studentId'));
+  $('#candidate-error').textContent = hasInput && !validation.valid ? validation.message : '';
+  const ready = candidateAssetsReady && candidateCabReady && !candidateLoadFailed;
+  const submit = $('#candidate-submit');
+  submit.disabled = !ready || !validation.valid;
+  submit.textContent = candidateLoadFailed ? '环境加载失败'
+    : !ready ? '实训环境加载中'
+      : validation.valid ? (mobileLike ? '横屏进入实训' : '进入实训') : '请填写姓名和学号';
+  return validation;
+}
+
+function setupCandidateGate() {
+  const cab = $('#cab-view');
+  const cabReady = typeof cab.decode === 'function'
+    ? cab.decode()
+    : new Promise((resolve, reject) => {
+      if (cab.complete && cab.naturalWidth) resolve();
+      else {
+        cab.addEventListener('load', resolve, { once: true });
+        cab.addEventListener('error', reject, { once: true });
+      }
+    });
+  cabReady.then(() => {
+    candidateCabReady = true;
+    updateCandidateGate();
+  }).catch(() => {
+    candidateLoadFailed = true;
+    $('#candidate-load-status').textContent = '驾驶台图片加载失败，请刷新页面重试。';
+    $('#candidate-load-status').dataset.state = 'error';
+    updateCandidateGate();
+  });
+  warmTerminalAssets().then(() => {
+    candidateAssetsReady = true;
+    $('#candidate-load-status').textContent = '线路环境已加载，可以进入实训。';
+    $('#candidate-load-status').dataset.state = 'ready';
+    updateCandidateGate();
+  }).catch((error) => {
+    candidateLoadFailed = true;
+    $('#candidate-load-status').textContent = `线路环境加载失败：${error.message}`;
+    $('#candidate-load-status').dataset.state = 'error';
+    updateCandidateGate();
+  });
+  for (const input of [$('#candidate-name'), $('#candidate-student-id')]) {
+    input.addEventListener('input', updateCandidateGate);
+    input.addEventListener('focus', syncVisualViewport);
+  }
+  updateCandidateGate();
 }
 
 createCabControls();
 $('#candidate-name').value = currentCandidate.name;
 $('#candidate-student-id').value = currentCandidate.studentId;
-$('#candidate-form').addEventListener('submit', (event) => {
+setupCandidateGate();
+$('#candidate-form').addEventListener('submit', async (event) => {
   event.preventDefault();
-  const validation = validateCandidate({
-    name: $('#candidate-name').value,
-    studentId: $('#candidate-student-id').value,
-  });
-  $('#candidate-name').toggleAttribute('aria-invalid', !validation.valid && validation.field === 'name');
-  $('#candidate-student-id').toggleAttribute('aria-invalid', !validation.valid && validation.field === 'studentId');
-  $('#candidate-error').textContent = validation.message;
+  if (!candidateAssetsReady || !candidateCabReady || candidateLoadFailed) return;
+  const validation = updateCandidateGate();
   if (!validation.valid) {
     $(`#candidate-${validation.field === 'studentId' ? 'student-id' : 'name'}`).focus();
     return;
   }
   currentCandidate = saveCandidateDraft(validation.candidate);
+  candidateEntryComplete = true;
   closeCandidateGate();
-  warmTerminalAssets();
+  syncVisualViewport();
+  if (mobileLike) await enterImmersive();
+  else routeScene?.resize?.();
 });
 document.querySelectorAll('[data-mode]').forEach((button) => button.addEventListener('click', () => chooseMode(button.dataset.mode)));
 $('#callout').addEventListener('click', () => simulation.command('callout'));
@@ -599,14 +690,18 @@ $('#view-toggle').addEventListener('click', () => $('#view-menu').classList.togg
 document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => { selectView(button.dataset.view); $('#view-menu').classList.remove('open'); }));
 document.querySelectorAll('[data-close-panel]').forEach((button) => button.addEventListener('click', () => togglePanel(button.closest('.side-panel'))));
 $('#fullscreen').addEventListener('click', async () => {
-  try { if (document.fullscreenElement) await document.exitFullscreen(); else await $('#stage').requestFullscreen(); } catch { /* 全屏权限由浏览器决定。 */ }
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else if (mobileLike) await enterImmersive();
+    else await $('#stage').requestFullscreen();
+  } catch { /* 全屏权限由浏览器决定。 */ }
 });
+$('#enter-landscape').addEventListener('click', enterImmersive);
 $('#retry').addEventListener('click', () => chooseMode(simulation.state.mode));
 $('#choose-mode').addEventListener('click', () => { $('#result-modal').classList.remove('open'); $('#mode-picker').classList.add('open'); });
 $('#change-candidate').addEventListener('click', () => {
-  $('#result-modal').classList.remove('open');
-  $('#mode-picker').classList.add('open');
-  openCandidateGate(true);
+  clearCandidateDraft();
+  location.reload();
 });
 $('#route-loading-back').addEventListener('click', () => {
   $('#route-loading').classList.remove('open');
@@ -636,6 +731,16 @@ function stopHorn(event) {
 }
 window.addEventListener('pointerup', stopHorn);
 window.addEventListener('pointercancel', stopHorn);
+window.addEventListener('orientationchange', () => {
+  syncVisualViewport();
+  setTimeout(() => { syncVisualViewport(); syncLandscapeGate(); routeScene?.resize?.(); }, 180);
+});
+window.addEventListener('fullscreenchange', () => {
+  syncVisualViewport();
+  if (!document.fullscreenElement && !isPortraitMobile()) document.documentElement.classList.remove('immersive');
+  syncLandscapeGate();
+  routeScene?.resize?.();
+});
 
 window.__terminalStopping = {
   get simulation() { return simulation; },
