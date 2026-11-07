@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#06131d">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23061925'/%3E%3Cpath d='M13 39h38M18 39V20h28v19M24 48l5-9m11 9-5-9' stroke='%2358d7ff' stroke-width='5' fill='none'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%23f0c457'/%3E%3Ccircle cx='39' cy='29' r='3' fill='%23f0c457'/%3E%3C/svg%3E">
   <title>HXD1C 终到对标停车虚拟实训</title>
-  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-9">
+  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-10">
 </head>
 <body class="candidate-entry-active">
   <section id="candidate-gate" class="candidate-gate" role="dialog" aria-modal="true" aria-labelledby="candidate-title">
@@ -21,7 +21,6 @@
       <p id="candidate-error" class="candidate-error" role="alert" aria-live="polite"></p>
       <button id="candidate-submit" class="candidate-submit" type="submit" disabled>请填写姓名和学号</button>
       <p id="candidate-load-status" class="candidate-load-status" data-state="loading" aria-live="polite">线路环境正在后台加载…</p>
-      <small>信息仅保存在当前浏览器标签页，不会上传到服务器；成绩单将显示本轮姓名和学号。</small>
     </form>
   </section>
 
@@ -54,7 +53,7 @@
         <div class="mobile-control-row"><span>牵引／电制动 <b data-mobile-traction>牵引 1级</b></span><button type="button" data-mobile-command="traction-down">−</button><button type="button" data-mobile-command="traction-zero">0</button><button type="button" data-mobile-command="traction-up">＋</button></div>
         <div class="mobile-control-row"><span>自阀 <b data-mobile-auto>运转位</b></span><button type="button" data-mobile-command="auto-down">−</button><button type="button" data-mobile-command="auto-up">＋</button></div>
         <div class="mobile-control-row"><span>单阀 <b data-mobile-independent>缓解位</b></span><button type="button" data-mobile-command="independent-down">−</button><button type="button" data-mobile-command="independent-up">＋</button></div>
-        <div class="mobile-device-row"><button type="button" data-mobile-command="side-release">单缓</button><button type="button" data-mobile-command="lkj">LKJ</button><button type="button" data-mobile-command="cir">CIR</button></div>
+        <div class="mobile-device-row"><button type="button" data-mobile-command="lkj">LKJ</button><button type="button" data-mobile-command="cir">CIR</button></div>
       </section>
 
       <nav id="view-menu" class="view-menu" aria-label="驾驶视角">
@@ -70,12 +69,11 @@
       <aside id="rules-panel" class="side-panel rules-panel" aria-hidden="true">
         <div class="panel-head"><strong>任务说明</strong><button data-close-panel aria-label="关闭">×</button></div>
         <p><b>本工况：</b>平直站场、标准旅客列车、正线进站停车。进站信号显示一个黄灯，准许经道岔直向进入正线准备停车；出站信号显示红灯。40-400-100-30 是本教学工况的经验基线，不代表所有线路。</p>
-        <p><b>操作位置：</b>左下为自阀和单阀，中下偏右为牵引手柄，中央屏幕为 LKJ，右侧设备区为 CIR；手机横屏可点顶部“操作”打开同款操作面板。CIR 本专项不计分。</p>
         <ul>
-          <li>进入后先打开 LKJ，确认进站一个黄灯并呼唤；本工况距停车标约 720 m（进站信号机前约 87 m）时将牵引手柄回零。</li>
-          <li>距标 400 m、速度 37～43 km/h 时，自阀置初制位，实施约 50 kPa 初减压。</li>
+          <li>进入后先打开 LKJ，确认进站一个黄灯并呼唤；初始距进站信号机约 500 m，距停车标约 720 m 时将牵引手柄回零。</li>
+          <li>越过进站信号机后，LKJ 转为显示距红灯出站信号机的距离。距出站信号机约 960 m（对应距停车标约 400 m）、速度 37～43 km/h 时，自阀置初制位，实施约 50 kPa 初减压。</li>
           <li>初减后 80 m 内操作单缓；全程不用动力制动，不在运行中使用单阀，不缓解自阀。</li>
-          <li>100 m 处校速，参考 30 km/h；需追加时应待排风停止，单次追加不超过初减量。</li>
+          <li>LKJ 距出站信号机约 660 m（对应距停车标约 100 m）时校速，参考 30 km/h；约 610 m（对应距标 50 m）时进入低速对标。</li>
           <li>牵引列车使用自动制动停车；禁止用单阀、动力制动或惰行代替列车制动停车。</li>
           <li>少量减压停车后，追加至减压 100 kPa 以上，单阀置全制动位。</li>
           <li><b>满分条件：</b>400 m 断面 37～43 km/h、100 m 断面 27～32 km/h、50 m 断面 14～24 km/h，停车误差不超过 ±0.5 m，最大减速度不超过 0.7 m/s²，并完成上述防溜操作。</li>
@@ -89,7 +87,7 @@
       </aside>
 
       <section id="training-guide" class="training-guide" aria-live="polite">
-        <div><span>距标</span><b id="guide-remaining">980 m</b></div>
+        <div><span id="guide-signal-label">LKJ距进站</span><b id="guide-signal-remaining">500 m</b><small id="guide-remaining">距标 1103 m</small></div>
         <div><span>参考</span><b id="guide-speed">40 km/h</b><small id="guide-band">37–43 km/h</small></div>
         <p id="guide-hint">初减准备</p>
       </section>
@@ -97,8 +95,6 @@
       <div id="status-strip" class="status-strip" aria-live="polite">
         <b id="mode-name">教学训练</b><span id="phase-name">进站确认</span><em id="status-message">监控正常</em>
       </div>
-
-      <p class="mobile-control-hint">直接拖动原操作台手柄：上下换位；单阀向右滑动并保持为单缓</p>
 
       <section id="lkj-dock" class="lkj-dock" aria-hidden="true">
         <button type="button" class="lkj-close" data-lkj-close aria-label="关闭LKJ放大界面">×</button>
@@ -118,7 +114,6 @@
             <button type="button" data-mode="training"><b>教学训练</b><span>显示 400 m、100 m、50 m 参照点，提供速度带与条件式纠偏提示。</span><em>进入训练</em></button>
             <button type="button" data-mode="assessment"><b>独立考核</b><span>隐藏参考点和答案，只记录操作、速度曲线、停车误差及安全红线。</span><em>开始考核</em></button>
           </div>
-          <small>独立项目：仅使用 <code>hxd1c-terminal-stopping-v1</code> 浏览器存储，不读取或写入其他训练项目。</small>
         </div>
       </section>
 
@@ -150,6 +145,6 @@
       </section>
     </section>
   </main>
-  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-9"></script>
+  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-10"></script>
 </body>
 </html>

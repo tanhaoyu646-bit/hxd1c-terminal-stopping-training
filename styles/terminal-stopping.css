@@ -13,6 +13,7 @@
 html, body { margin: 0; min-height: 100%; overflow: hidden; background: #050b10; }
 button { font: inherit; color: inherit; }
 button, .sprite { touch-action: none; }
+#stage, #stage * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
 .candidate-gate { position: fixed; z-index: 5000; top: var(--visual-offset-top, 0); right: 0; left: 0; display: grid; place-items: center; height: var(--visual-height, 100dvh); min-height: 0; padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); overflow: auto; background: radial-gradient(circle at 50% 6%, #19465f 0, #071722 47%, #02080d 100%); }
 .candidate-gate[hidden] { display: none; }
@@ -189,6 +190,7 @@ button, .sprite { touch-action: none; }
 .physical-control { z-index: 8; border: 1px dashed transparent; background: transparent; cursor: pointer; }
 .physical-control:focus-visible { border-color: #8be7ff; outline: 0; background: #40c9ff28; }
 .control-position-badge {
+  display: none;
   z-index: 9;
   min-height: 43px;
   padding: 5px 8px;
@@ -201,10 +203,9 @@ button, .sprite { touch-action: none; }
 .control-position-badge b, .control-position-badge span { display: block; }
 .control-position-badge b { color: #8ce7ff; font-size: clamp(9px, 1vw, 14px); }
 .control-position-badge span { margin-top: 2px; color: #fff; font-size: clamp(10px, 1.1vw, 16px); }
-.side-release-control { border-color: #e7b84e; background: #4b3809e8; }
-.side-release-control.active { background: #855f08; box-shadow: 0 0 16px #ffd75d; }
 
-.mobile-control-hint { display: none; }
+.independent-brake { transition: transform 70ms ease-out, filter 70ms ease-out; }
+.independent-brake.side-release-active { transform: translateX(18px); filter: drop-shadow(0 0 7px #ffd75d); }
 
 .lkj-dock {
   position: absolute;
@@ -311,9 +312,8 @@ button, .sprite { touch-action: none; }
   .training-guide b { font-size: 13px; }
   .training-guide p { font-size: 8px; line-height: 1.3; }
   .status-strip { bottom: max(4px, env(safe-area-inset-bottom)); min-width: 56%; padding: 4px 9px; font-size: 9px; }
-  .control-position-badge { min-height: 29px; padding: 2px; }
+  body.mobile-controls-enabled .control-position-badge { display: none; }
   .touch-target { display: block; }
-  .mobile-control-hint { position: absolute; z-index: 29; top: max(48px, calc(env(safe-area-inset-top) + 42px)); left: 50%; display: block; margin: 0; transform: translateX(-50%); padding: 4px 8px; border: 1px solid #507b8b; border-radius: 6px; background: #04131dc9; color: #a9cedb; font-size: 8px; white-space: nowrap; pointer-events: none; }
   .side-panel { top: 11%; right: max(1%, env(safe-area-inset-right)); width: 42%; max-height: 70%; padding: 8px; }
   .side-panel li, .side-panel p { font-size: 9px; }
   .lkj-dock { position: fixed; z-index: 120; top: 50%; left: 50%; width: min(92vw, 112vh); transform: translate(-50%, -50%); }
@@ -375,7 +375,7 @@ button, .sprite { touch-action: none; }
 .lkj-native-speed,.lkj-native-limit,.lkj-native-distance,.lkj-native-station,.lkj-native-km,.lkj-native-date,.lkj-native-time{position:absolute;z-index:3;display:grid;place-items:center;margin:0;background:#000;line-height:1;font-weight:500;font-family:"Times New Roman",SimSun,serif}
 .lkj-native-speed{left:17%;top:.3%;width:9.4%;height:8.7%;color:#16f64a;font-size:clamp(12px,1.3vw,26px)}.lkj-native-limit{left:33.3%;top:.3%;width:9.4%;height:8.7%;color:#ff1d19;font-size:clamp(12px,1.3vw,26px)}.lkj-native-distance{left:50.4%;top:.3%;width:11.7%;height:8.7%;color:#fff000;font-size:clamp(12px,1.3vw,26px)}
 .lkj-native-station{left:67.2%;top:.3%;width:16.1%;height:3.9%;overflow:hidden;color:#c5c5c5;font-size:clamp(5px,.52vw,10px);white-space:nowrap}.lkj-native-km{left:67.2%;top:4.7%;width:16.1%;height:4.1%;color:#fff000;font-size:clamp(7px,.8vw,15px)}.lkj-native-date{left:83.8%;top:.3%;width:15.8%;height:4.1%;color:#ddd;font-size:clamp(5px,.55vw,10px)}.lkj-native-time{left:83.8%;top:4.7%;width:15.8%;height:4.1%;color:#fff;font-size:clamp(6px,.72vw,14px)}
-.lkj-native-monitor,.lkj-native-monitor svg{position:absolute;inset:0;width:100%;height:100%}.lkj-native-monitor svg{z-index:1;pointer-events:none}.lkj-native-monitor polyline{fill:none;vector-effect:non-scaling-stroke}.lkj-speed-scale-bg{fill:#aaa}.lkj-speed-tick>line:not(.lkj-speed-grid){stroke:#111;stroke-width:1}.lkj-speed-tick text{fill:#111;font:16px "Times New Roman",SimSun,serif;text-anchor:end}.lkj-speed-grid{stroke:#303030;stroke-width:.65;opacity:.72}.lkj-native-limit-line{stroke:#e31c20;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.lkj-native-limit-value{fill:#ffe600;font:16px "Times New Roman",SimSun,serif;paint-order:stroke;stroke:#000;stroke-width:2}.lkj-native-position-line{stroke:#ffe900;stroke-width:1.8}.lkj-native-speed-line{stroke:#e33cff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.lkj-signal-marker line{stroke:#ddd;stroke-width:1;stroke-dasharray:2 4}.lkj-signal-marker circle{fill:#fff;stroke:#111}.lkj-signal-marker text,.lkj-window-label{fill:#ddd;font:8px SimSun,"宋体",serif}.lkj-window-label{opacity:.7}
+.lkj-native-monitor,.lkj-native-monitor svg{position:absolute;inset:0;width:100%;height:100%}.lkj-native-monitor svg{z-index:1;pointer-events:none}.lkj-native-monitor polyline{fill:none;vector-effect:non-scaling-stroke}.lkj-speed-scale-bg{fill:#aaa}.lkj-speed-tick>line:not(.lkj-speed-grid){stroke:#111;stroke-width:1}.lkj-speed-tick text{fill:#111;font:16px "Times New Roman",SimSun,serif;text-anchor:end}.lkj-speed-grid{stroke:#303030;stroke-width:.65;opacity:.72}.lkj-native-limit-line{stroke:#e31c20;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}.lkj-native-limit-value{fill:#ffe600;font:16px "Times New Roman",SimSun,serif;paint-order:stroke;stroke:#000;stroke-width:2}.lkj-native-position-line{stroke:#ffe900;stroke-width:1.8}.lkj-native-speed-line{stroke:#19df54;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}.lkj-signal-marker line{stroke:#ddd;stroke-width:1;stroke-dasharray:2 4}.lkj-signal-marker circle{fill:#fff;stroke:#111}.lkj-signal-marker text,.lkj-window-label{fill:#ddd;font:8px SimSun,"宋体",serif}.lkj-window-label{opacity:.7}
 .lkj-grade-line{stroke:#fff;stroke-width:1.4}.lkj-grade-zero{stroke:#5050ff;stroke-width:1}.lkj-curve-line{stroke:#3ef0f5;stroke-width:1.4}.lkj-facility rect{stroke-width:1;opacity:.85}.lkj-facility.bridge rect{fill:#7b5522;stroke:#ffc34c}.lkj-facility.tunnel rect{fill:#39274f;stroke:#c59cff}.lkj-facility text{fill:#fff;font:9px SimSun,"宋体",serif}.lkj-train-icon{fill:#f13cff;stroke:#fff;stroke-width:.7}.lkj-train-head{fill:#ffe900;stroke:#111}
 .lkj-native-equipment{position:absolute;z-index:2;left:68.2%;top:10.7%;width:26.5%;padding:.5%;border:1px solid #fff;background:#0717d7;color:#fff;font-size:clamp(4px,.41vw,8px);line-height:1.35}.lkj-native-equipment b{display:flex;justify-content:space-between;gap:3px;font-weight:600;white-space:nowrap}.lkj-native-equipment em{font-style:normal}.lkj-native-equipment small{display:block;margin-top:3px;color:#ffef65;text-align:center}
 .lkj-native-status{position:absolute;z-index:2;left:24%;bottom:19.5%;padding:.35% .8%;border:1px solid #777;background:#bdbdbd;color:#222;font-size:clamp(5px,.58vw,11px)}.level-warning .lkj-native-status,.level-unload .lkj-native-status{background:#ffe44d}.level-service .lkj-native-status,.level-emergency .lkj-native-status{background:#f04444;color:#fff;animation:blink .5s infinite}
@@ -394,13 +394,13 @@ button, .sprite { touch-action: none; }
 @media(max-height:620px) and (orientation:landscape){
   .stage{width:100vw;height:100dvh;max-width:none;max-height:none}
   .toolbar{top:env(safe-area-inset-top);right:max(4px,env(safe-area-inset-right));width:auto;max-width:96%;gap:4px}.toolbar-button{min-height:36px;padding:5px 7px;font-size:clamp(9px,1.2vw,13px)}.icon-button{width:36px}
-  .control-position-badge{min-height:28px;padding:2px 4px}.control-position-badge b{font-size:9px}.control-position-badge span{font-size:10px}
+  body.mobile-controls-enabled .control-position-badge{display:none}
   .side-panel{position:fixed;top:46px;right:max(4px,env(safe-area-inset-right));width:min(380px,65vw);max-height:calc(100dvh - 55px)}
   .lkj-dock{width:min(92vw,calc(93dvh * 800 / 615));max-height:93dvh}.lkj-native-speed,.lkj-native-limit,.lkj-native-distance{font-size:clamp(18px,5.2vh,24px)}.lkj-native-equipment{font-size:clamp(4px,1.2vh,6px)}.lkj-native-station,.lkj-native-km,.lkj-native-date,.lkj-native-time{font-size:clamp(7px,1.8vh,11px)}
   .cir-device{width:98vw;height:98dvh}.cir-device>header{height:36px}.cir-layout{height:calc(100% - 36px);grid-template-columns:minmax(0,2.5fr) minmax(170px,.75fr);gap:6px;padding:6px}.cir-status{padding:7px}.cir-status h3{font-size:12px}.cir-status dl div,.cir-status p{font-size:10px;padding:4px 0}
   .mobile-only{display:block}.mobile-operations.open{position:fixed;z-index:90;left:max(4px,env(safe-area-inset-left));bottom:max(4px,env(safe-area-inset-bottom));display:block;width:min(390px,48vw);max-height:calc(100dvh - 42px);overflow:auto;padding:8px;border:1px solid #61c8ea;border-radius:10px;background:#061924f5;box-shadow:0 10px 35px #000e}
   .mobile-operations header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}.mobile-operations header b{font-size:12px}.mobile-operations header button{width:29px;height:27px;border:1px solid #97545c;border-radius:5px;background:#3d2028;font-size:20px}
-  .mobile-control-row{display:flex;align-items:center;gap:4px;margin:3px 0}.mobile-control-row span{flex:1;min-width:0;color:#a8ccdc;font-size:9px}.mobile-control-row b{display:block;color:#e8fbff;font-size:11px}.mobile-control-row button,.mobile-device-row button{min-width:33px;min-height:32px;padding:2px 5px;border:1px solid #4daed2;border-radius:5px;background:#124056;font-size:14px}.mobile-device-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:6px}.mobile-device-row button{font-size:10px}
+  .mobile-control-row{display:flex;align-items:center;gap:4px;margin:3px 0}.mobile-control-row span{flex:1;min-width:0;color:#a8ccdc;font-size:9px}.mobile-control-row b{display:block;color:#e8fbff;font-size:11px}.mobile-control-row button,.mobile-device-row button{min-width:33px;min-height:32px;padding:2px 5px;border:1px solid #4daed2;border-radius:5px;background:#124056;font-size:14px}.mobile-device-row{display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-top:6px}.mobile-device-row button{font-size:10px}
 }
 
 /* 手机横屏LKJ保持左上角设备小窗，尺寸按实测参考图约占屏宽30%。 */

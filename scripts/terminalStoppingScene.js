@@ -1,5 +1,5 @@
 import * as THREE from '../lib/three/three.module.js';
-import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-7';
+import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-10';
 
 export class TerminalStoppingScene extends MstsRouteScene {
   constructor(canvas, scenario, mode = 'training') {
@@ -61,7 +61,7 @@ export class TerminalStoppingScene extends MstsRouteScene {
     board.position.y = 2.75;
     board.rotation.y = Math.PI;
     root.add(board);
-    this.placeLookoutObject3D(root, scenario.startOffset + scenario.targetDistance, -4.2, 0);
+    this.placeLookoutObject3D(root, scenario.startOffset + scenario.targetDistance, -3.25, 0);
     this.routeRoot.add(root);
     this.stationObjects.push({ root, distance: scenario.targetDistance, range: 1_300 });
   }

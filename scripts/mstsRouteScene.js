@@ -7,8 +7,8 @@ import { LOOKOUT_TRAINING_CONFIG } from './lookoutTrainingConfig.js';
 // 因此所有三维资源必须相对 import.meta.url 解析，不能使用普通 ../assets 字符串。
 const SOURCE_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-full-scene.json', import.meta.url).href;
 const ROUTE_PATH = new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path.json', import.meta.url).href;
-const TERMINAL_STATION_SOURCE_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-7', import.meta.url).href;
-const TERMINAL_STATION_ROUTE_PATH = new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-7', import.meta.url).href;
+const TERMINAL_STATION_SOURCE_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-10', import.meta.url).href;
+const TERMINAL_STATION_ROUTE_PATH = new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-10', import.meta.url).href;
 const TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-terrain.json', import.meta.url).href;
 const LOOKOUT_TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-lookout-terrain-native.json', import.meta.url).href;
 const TERMINAL_STATION_TERRAIN_PATH = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url).href;
@@ -64,8 +64,8 @@ export class MstsRouteScene {
       : this.isCorridor ? LOOKOUT_ROUTE_RENDER_OPTIONS : DEFAULT_ROUTE_RENDER_OPTIONS;
     const coarse = matchMedia('(pointer: coarse)').matches;
     this.mobileOptimized = coarse;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !coarse, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1 : 1.5));
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, coarse ? 1.15 : 1.5));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -212,7 +212,7 @@ export class MstsRouteScene {
     terrainTexture.colorSpace = THREE.SRGBColorSpace;
     terrainTexture.wrapS = terrainTexture.wrapT = THREE.RepeatWrapping;
     terrainTexture.repeat.set(18, 18);
-    terrainTexture.anisotropy = Math.min(this.mobileOptimized ? 1 : 4, this.renderer.capabilities.getMaxAnisotropy());
+    terrainTexture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
     const microTexture = this.textureLoader.load(`${TEXTURE_PATH}microtex.png`);
     microTexture.wrapS = microTexture.wrapT = THREE.RepeatWrapping;
     microTexture.repeat.set(18, 18);
@@ -360,7 +360,7 @@ export class MstsRouteScene {
       texture.flipY = false;
       texture.colorSpace = THREE.SRGBColorSpace;
       texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-      texture.anisotropy = Math.min(this.mobileOptimized ? 1 : 4, this.renderer.capabilities.getMaxAnisotropy());
+      texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
     }
     const isTrackMaterial = /track/i.test(textureName);
     const isRailTop = /rail[_ ]?tops?/i.test(materialName);

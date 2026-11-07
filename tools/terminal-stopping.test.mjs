@@ -56,14 +56,18 @@ test('教学基线包含40-400-100-30和50米低速观察点', () => {
   assert.equal(targetCurveSpeed(100), 30);
   assert.equal(targetCurveSpeed(50), 20);
   assert.deepEqual(trainingBand(100), { target: 30, minimum: 27.5, maximum: 32.5 });
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.brakingPoint, 961);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.checkPoint, 661);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.lowSpeedPoint, 611);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.targetDistance, 561);
 });
 
 test('正线进站停车使用黄灯且初始位置与进站信号保持足够距离', () => {
   const entry = SCENARIO.signals.find((signal) => signal.id === 'entry');
   assert.equal(entry.aspect, 'yellow');
-  assert.ok(entry.distance >= 300);
+  assert.ok(entry.distance >= 450);
   assert.equal(SCENARIO.startOffset + entry.distance, SCENARIO.routeWindow.entrySignalDistance);
-  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 29630);
+  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 29600);
 });
 
 test('学员姓名学号校验并仅写入指定会话存储', () => {
@@ -230,8 +234,34 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   assert.match(cirSource, /CIR-simulator\.html/);
   assert.match(cirSource, /tail-query/);
   assert.match(html, /data-mobile-command="cir"/);
+  assert.doesNotMatch(html, /data-mobile-command="side-release"/);
+  assert.doesNotMatch(html, /mobile-control-hint/);
+  assert.doesNotMatch(html, /不读取或写入其他训练项目|不会上传到服务器|浏览器存储/);
   assert.match(css, /\.sprite, \.control-position-badge, \.physical-control, \.touch-target \{ pointer-events: auto; \}/);
+  assert.match(css, /\.control-position-badge \{[\s\S]*?display: none;/);
+  assert.match(css, /-webkit-touch-callout:\s*none/);
+  assert.match(css, /\.independent-brake\.side-release-active/);
+  assert.match(css, /\.lkj-native-speed-line\{stroke:#19df54/);
   assert.match(appSource, /makePhysical\('放大LKJ监控装置'[\s\S]+?\(\) => lkj\.show\(\)/);
+});
+
+test('手机场景清晰度与途中调速项目使用同一渲染基线', () => {
+  const source = readFileSync(new URL('../scripts/mstsRouteScene.js', import.meta.url), 'utf8');
+  assert.match(source, /antialias:\s*true/);
+  assert.match(source, /coarse \? 1\.15 : 1\.5/);
+  assert.match(source, /texture\.anisotropy = Math\.min\(4,/);
+  assert.match(source, /terrainTexture\.anisotropy = Math\.min\(4,/);
+});
+
+test('教学界面以LKJ下一信号距离为主并保留距停车标辅助值', () => {
+  const appSource = readFileSync(new URL('../scripts/terminalStoppingApp.js', import.meta.url), 'utf8');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const sceneSource = readFileSync(new URL('../scripts/terminalStoppingScene.js', import.meta.url), 'utf8');
+  assert.match(html, /id="guide-signal-remaining"/);
+  assert.match(html, /距出站信号机约 960 m/);
+  assert.match(appSource, /LKJ距\$\{signalName\}/);
+  assert.match(appSource, /距标 \$\{Math\.max\(0, remaining\)/);
+  assert.match(sceneSource, /scenario\.targetDistance, -3\.25/);
 });
 
 test('登录、沉浸式全屏与成绩入口沿用途中调速项目流程', () => {

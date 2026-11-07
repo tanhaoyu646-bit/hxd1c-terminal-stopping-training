@@ -9,7 +9,7 @@ import {
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-8';
+} from './terminalStoppingConfig.js?v=terminal-station-10';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -327,24 +327,27 @@ export class TerminalStoppingSimulation extends EventTarget {
     const s = this.state;
     if (s.mode !== 'training') return '考核模式仅记录操作，不显示答案';
     const remaining = remainingToTarget(s.distance);
+    const exitRemaining = Math.max(0, SCENARIO.exitSignalDistance - s.distance);
     const hasInitialBrake = s.events.some((event) => event.type === 'brake-application');
     if (s.stopped) return 600 - s.trainPipe < 95 || s.independentBrake < 5
       ? '停车后：自阀追加至减压 100 kPa 以上，单阀置全制动位'
       : '停车防溜完成';
     if (remaining > SCENARIO.targetDistance - SCENARIO.tractionZeroPoint) {
-      return '进站确认：查看 LKJ、确认进站黄灯并呼唤，距标约 720 m 前准备牵引回零';
+      return '进站确认：查看 LKJ、确认进站黄灯并呼唤，距标约 720 m 时牵引回零';
     }
     if (remaining > 400) return s.traction === 0
-      ? '牵引已回零：保持瞭望，控制 38–42 km/h，准备 400 m 初减'
+      ? s.distance < SCENARIO.entryDistance
+        ? '牵引已回零：保持瞭望，准备越过进站信号机'
+        : `进站后以LKJ为主：距出站约 ${exitRemaining.toFixed(0)} m，准备在约 960 m 初减`
       : '已到牵引回零点：立即将牵引手柄回零';
-    if (!hasInitialBrake) return '已进入初减区：立即实施约 50 kPa 初减压，不要继续等待';
-    if (remaining > 100) return `保持初减并观察减速，当前参考 ${s.targetBand.minimum.toFixed(0)}–${s.targetBand.maximum.toFixed(0)} km/h`;
+    if (!hasInitialBrake) return `LKJ距出站约 ${exitRemaining.toFixed(0)} m：立即实施约 50 kPa 初减压`;
+    if (remaining > 100) return `LKJ距出站 ${exitRemaining.toFixed(0)} m：保持初减，参考 ${s.targetBand.minimum.toFixed(0)}–${s.targetBand.maximum.toFixed(0)} km/h`;
     if (remaining > 50) return s.speed > 31
-      ? '100 m 校速偏高：排风停止后追加，单次追加不得超过初减量'
+      ? 'LKJ距出站约660 m，校速偏高：排风停止后追加'
       : s.speed < 27
-        ? '100 m 校速偏低：稳住，不要急于追加或缓解'
-        : '100 m 校速合适：小量追加，准备低速对标';
-    return '低速接近：保持空气制动，禁止用单阀或动力制动代替列车制动';
+        ? 'LKJ距出站约660 m，校速偏低：稳住，不要急于追加或缓解'
+        : 'LKJ距出站约660 m，校速合适：小量追加，准备低速对标';
+    return 'LKJ距出站约610 m进入低速对标；停车标仅作目视辅助';
   }
 
   emitChange() {

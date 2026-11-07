@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-9';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-9';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-9';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-9';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-9';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-9';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-10';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-10';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-10';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-10';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-10';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-10';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-9';
+} from './terminalStoppingCandidate.js?v=terminal-station-10';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -214,17 +214,6 @@ function createCabControls() {
   elements.independentBadge = makeBadge('independent', '单阀', 116, 321, 78);
   elements.tractionBadge = makeBadge('traction', '牵引手柄', 438, 323, 86);
   elements.directionBadge = makeBadge('direction', '换向手柄', 521, 342, 88);
-  elements.sideRelease = makeBadge('side-release', '单缓（按住）', 107, 404, 82);
-  elements.sideRelease.classList.add('side-release-control');
-  const beginSideRelease = (event) => {
-    event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    simulation.command('side-release', true);
-  };
-  const endSideRelease = () => simulation.command('side-release', false);
-  elements.sideRelease.addEventListener('pointerdown', beginSideRelease);
-  elements.sideRelease.addEventListener('pointerup', endSideRelease);
-  elements.sideRelease.addEventListener('pointercancel', endSideRelease);
   makePhysical('放大LKJ监控装置', 210, 226, 101, 94, () => lkj.show(), 'lkj-hotspot');
 
   makeDigital('speedDigital', 229, 251, 20, 7, 'speed');
@@ -334,8 +323,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-9', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-9', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-10', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-10', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
@@ -419,6 +408,7 @@ function render() {
   const s = simulation.state;
   frame(elements.auto, autoBrakeFrames[s.autoBrake], 4, 3);
   frame(elements.independent, s.independentBrake, 4, 3);
+  elements.independent.classList.toggle('side-release-active', s.sideRelease);
   frame(elements.traction, tractionFrame(s.traction), 2, 8);
   frame(elements.direction, s.direction === 'R' ? 0 : s.direction === 'N' ? 1 : 2, 3, 1);
   frame(elements['locomotive-signal'], signalFrames[s.signal?.aspect] ?? signalFrames.yellow, 4, 2);
@@ -437,17 +427,19 @@ function render() {
   elements.independentBadge.querySelector('span').textContent = s.independentBrake ? `${s.independentBrake}级` : '缓解位';
   elements.tractionBadge.querySelector('span').textContent = s.traction > 0 ? `牵引 ${s.traction}级` : s.traction < 0 ? `电制 ${Math.abs(s.traction)}级` : '零位';
   elements.directionBadge.querySelector('span').textContent = s.direction === 'F' ? '前进位' : s.direction === 'R' ? '后退位' : '中立位';
-  elements.sideRelease.classList.toggle('active', s.sideRelease);
-  elements.sideRelease.querySelector('span').textContent = s.sideRelease ? '已单缓' : '未动作';
   $('#phase-name').textContent = s.phase?.label || '进站对标';
   const remaining = SCENARIO.targetDistance - s.distance;
+  const signalRemaining = Math.max(0, (s.signal?.distance || s.distance) - s.distance);
+  const signalName = s.signal?.id === 'exit' ? '出站' : '进站';
   const levelText = { normal: '监控正常', warning: 'LKJ报警', unload: 'LKJ卸载', service: 'LKJ常用制动', emergency: 'LKJ紧急制动' }[s.lkjLevel];
   $('#status-message').textContent = s.stopped
     ? `停稳位置 ${formatError(s.stopError)} · 等待防溜操作`
-    : `${levelText} · 距停车标 ${Math.max(0, remaining).toFixed(0)} m`;
+    : `${levelText} · LKJ距${signalName} ${signalRemaining.toFixed(0)} m · 距标 ${Math.max(0, remaining).toFixed(0)} m`;
   $('#guide-speed').textContent = `${s.targetBand.target.toFixed(0)} km/h`;
   $('#guide-band').textContent = `${s.targetBand.minimum.toFixed(0)}–${s.targetBand.maximum.toFixed(0)} km/h`;
-  $('#guide-remaining').textContent = `${Math.max(0, remaining).toFixed(0)} m`;
+  $('#guide-signal-label').textContent = `LKJ距${signalName}`;
+  $('#guide-signal-remaining').textContent = `${signalRemaining.toFixed(0)} m`;
+  $('#guide-remaining').textContent = `距标 ${Math.max(0, remaining).toFixed(0)} m`;
   $('#guide-hint').textContent = simulation.trainingHint();
   const progress = assessment.progress(s);
   $('#progress-count').textContent = `${progress.done}/${progress.total}`;
@@ -468,15 +460,15 @@ function renderProgress(progress) {
 function renderData(s) {
   const rows = [
     ['速度', `${s.speed.toFixed(1)} km/h`], ['参考速度', s.mode === 'training' ? `${s.targetBand.target.toFixed(0)} km/h` : '已隐藏'],
-    ['距停车标', `${Math.max(0, SCENARIO.targetDistance - s.distance).toFixed(0)} m`], ['停车误差', s.stopError == null ? '—' : formatError(s.stopError)],
-    ['列车管', `${s.trainPipe.toFixed(0)} kPa`], ['减压量', `${Math.max(0, 600 - s.trainPipe).toFixed(0)} kPa`],
+    ['LKJ距下一信号', `${Math.max(0, (s.signal?.distance || s.distance) - s.distance).toFixed(0)} m`], ['距停车标', `${Math.max(0, SCENARIO.targetDistance - s.distance).toFixed(0)} m`],
+    ['停车误差', s.stopError == null ? '—' : formatError(s.stopError)], ['列车管', `${s.trainPipe.toFixed(0)} kPa`],
+    ['减压量', `${Math.max(0, 600 - s.trainPipe).toFixed(0)} kPa`],
     ['机车制动缸', `${s.locomotiveCylinder.toFixed(0)} kPa`], ['自阀', brakeNames[s.autoBrake]],
   ];
   $('#run-data').innerHTML = rows.map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`).join('');
 }
 
 function updateMobileLabels(s) {
-  elements.sideRelease?.setAttribute('aria-pressed', String(s.sideRelease));
   $('[data-mobile-traction]')?.replaceChildren(elements.tractionBadge.querySelector('span').textContent);
   $('[data-mobile-auto]')?.replaceChildren(brakeNames[s.autoBrake]);
   $('[data-mobile-independent]')?.replaceChildren(s.independentBrake ? `${s.independentBrake}级` : '缓解位');
@@ -674,10 +666,7 @@ document.querySelectorAll('[data-mobile-command]').forEach((button) => button.ad
   else if (action === 'auto-up') simulation.command('auto-brake', Math.min(5, s.autoBrake + 1));
   else if (action === 'independent-down') simulation.command('independent-brake', Math.max(0, s.independentBrake - 1));
   else if (action === 'independent-up') simulation.command('independent-brake', Math.min(5, s.independentBrake + 1));
-  else if (action === 'side-release') {
-    simulation.command('side-release', true);
-    setTimeout(() => simulation.command('side-release', false), 350);
-  } else if (action === 'lkj') {
+  else if (action === 'lkj') {
     $('#mobile-operations-toggle').click();
     cir.close();
     lkj.show();
