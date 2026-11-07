@@ -246,6 +246,6 @@ test('登录、沉浸式全屏与成绩入口沿用途中调速项目流程', ()
   assert.match(appSource, /async function enterImmersive\(\)/);
   assert.match(appSource, /requestFullscreen\(\{ navigationUI: 'hide' \}\)/);
   assert.match(appSource, /screen\.orientation\?\.lock\?\.\('landscape'\)/);
-  assert.match(appSource, /if \(mobileLike\) await enterImmersive\(\)/);
+  assert.match(appSource, /closeCandidateGate\(\);[\s\S]+?await enterImmersive\(\)/);
   assert.match(appSource, /clearCandidateDraft\(\);[\s\S]+?location\.reload\(\)/);
 });

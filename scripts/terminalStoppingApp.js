@@ -78,8 +78,10 @@ async function enterImmersive() {
       else if (root.webkitRequestFullscreen) await root.webkitRequestFullscreen();
     }
   } catch { /* iPhone Safari 等浏览器可能拒绝网页全屏，保留横屏提示作为回退。 */ }
-  try { await screen.orientation?.lock?.('landscape'); }
-  catch { /* iOS 和部分内置浏览器不支持方向锁定。 */ }
+  if (mobileLike) {
+    try { await screen.orientation?.lock?.('landscape'); }
+    catch { /* iOS 和部分内置浏览器不支持方向锁定。 */ }
+  }
   setTimeout(() => {
     scrollTo(0, 1);
     syncVisualViewport();
@@ -647,8 +649,7 @@ $('#candidate-form').addEventListener('submit', async (event) => {
   candidateEntryComplete = true;
   closeCandidateGate();
   syncVisualViewport();
-  if (mobileLike) await enterImmersive();
-  else routeScene?.resize?.();
+  await enterImmersive();
 });
 document.querySelectorAll('[data-mode]').forEach((button) => button.addEventListener('click', () => chooseMode(button.dataset.mode)));
 $('#callout').addEventListener('click', () => simulation.command('callout'));
