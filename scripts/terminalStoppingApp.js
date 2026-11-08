@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-14';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-14';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-14';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-14';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-14';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-14';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-15';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-15';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-15';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-15';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-15';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-15';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-14';
+} from './terminalStoppingCandidate.js?v=terminal-station-15';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -333,8 +333,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-14', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-14', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-15', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-15', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
@@ -409,8 +409,10 @@ async function chooseMode(mode) {
 function selectView(view) {
   selectedView = view;
   const cabView = $('#cab-view');
+  const rearLookout = view === 'rearLeft' || view === 'rearRight';
   cabView.src = `./assets/archive-cabview/${views[view]}`;
   cabView.dataset.view = view;
+  $('.stage').classList.toggle('rear-lookout-active', rearLookout);
   overlay.classList.toggle('hidden', view !== 'front');
   if (view !== 'front') cir.close();
   document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));

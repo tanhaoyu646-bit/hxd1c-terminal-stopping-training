@@ -64,6 +64,7 @@ button, .sprite { touch-action: none; }
 .cab-view { z-index: 2; object-fit: fill; pointer-events: none; user-select: none; transform: none; transform-origin: 50% 50%; transition: transform .18s ease; }
 .cab-view[data-view="left"] { transform: scale(2.2); transform-origin: 30% 43%; }
 .cab-view[data-view="right"] { transform: scale(2.2); transform-origin: 86% 46%; }
+.stage.rear-lookout-active .cab-view { display: none; }
 .cab-overlay { z-index: 5; pointer-events: none; }
 .cab-overlay.hidden { display: none; }
 

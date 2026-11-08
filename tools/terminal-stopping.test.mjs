@@ -92,7 +92,11 @@ test('正线进站停车使用黄灯且初始位置与进站信号保持足够�
   assert.equal(exit.aspect, 'redYellow');
   assert.ok(entry.distance >= 450);
   assert.equal(SCENARIO.startOffset + entry.distance, SCENARIO.routeWindow.entrySignalDistance);
-  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 29873);
+  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 30041.146157231335);
+  assert.equal(entry.sourceUid, 51755);
+  assert.equal(entry.sourceShape, 'jinzhan.s');
+  assert.equal(exit.sourceUid, 51674);
+  assert.equal(exit.sourceShape, 'chuzhan-halfauto.s');
 });
 
 test('学员姓名学号校验并仅写入指定会话存储', () => {
@@ -249,10 +253,13 @@ test('单缓只缓解机车制动缸且松手后恢复自动制动作用', () =>
   assert.ok(simulation.state.locomotiveCylinder > duringRelease);
 });
 
-test('停车标位于原大山铺约500米站台内且距出站信号机120米', () => {
+test('停车标位于沿曲线连续铺设的约500米站台内且距出站信号机120米', () => {
   const targetWorldDistance = SCENARIO.startOffset + SCENARIO.targetDistance;
-  assert.equal(SCENARIO.sourcePlatform.shape, 'platform-500m.s');
-  assert.equal(SCENARIO.sourcePlatform.uid, 50695);
+  assert.equal(SCENARIO.sourcePlatform.shape, 'platform-102m-no-awning-derived.s');
+  assert.equal(SCENARIO.sourcePlatform.sourceShape, 'platform-300m-no-awning.s');
+  assert.equal(SCENARIO.sourcePlatform.sourceUid, 50695);
+  assert.equal(SCENARIO.sourcePlatform.segmentCount, 5);
+  assert.ok(SCENARIO.sourcePlatform.segmentLength > SCENARIO.sourcePlatform.segmentStep);
   assert.ok(SCENARIO.sourcePlatform.worldEnd - SCENARIO.sourcePlatform.worldStart >= 500);
   assert.ok(targetWorldDistance >= SCENARIO.sourcePlatform.worldStart);
   assert.ok(targetWorldDistance <= SCENARIO.sourcePlatform.worldEnd);
@@ -261,12 +268,22 @@ test('停车标位于原大山铺约500米站台内且距出站信号机120米',
   assert.ok(SCENARIO.routeWindow.end > SCENARIO.exitSignalDistance + SCENARIO.startOffset);
 });
 
-test('终到场景包含原站台和移动端兼容的原地形资产', () => {
+test('终到场景包含连续站台、对应地面信号机和移动端兼容的原地形资产', () => {
   const sceneUrl = new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json', import.meta.url);
   const scene = JSON.parse(readFileSync(sceneUrl, 'utf8'));
   const terrain = JSON.parse(readFileSync(new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url), 'utf8'));
-  const platform = scene.instances.find((item) => item.uid === SCENARIO.sourcePlatform.uid);
-  assert.equal(platform?.shape, SCENARIO.sourcePlatform.shape);
+  const platforms = scene.instances.filter((item) => (
+    item.uid >= SCENARIO.sourcePlatform.uid
+    && item.uid < SCENARIO.sourcePlatform.uid + SCENARIO.sourcePlatform.segmentCount
+  ));
+  assert.equal(platforms.length, SCENARIO.sourcePlatform.segmentCount);
+  assert.ok(platforms.every((item) => item.shape === SCENARIO.sourcePlatform.shape));
+  assert.equal(scene.instances.some((item) => item.uid === SCENARIO.sourcePlatform.sourceUid), false);
+  for (const signal of SCENARIO.signals) {
+    const groundSignal = scene.instances.find((item) => item.uid === signal.sourceUid);
+    assert.equal(groundSignal?.shape, signal.sourceShape);
+    assert.equal(SCENARIO.startOffset + signal.distance, SCENARIO.routeWindow[signal.id === 'entry' ? 'entrySignalDistance' : 'redSignalDistance']);
+  }
   assert.ok(scene.summary.instanceCount < 1_000, `terminal instances ${scene.summary.instanceCount}`);
   assert.ok(statSync(sceneUrl).size < 1_700_000, `terminal scene bytes ${statSync(sceneUrl).size}`);
   assert.equal(terrain.summary.tileCount, 6);
@@ -347,6 +364,11 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   assert.match(css, /\.lkj-native-speed-line\{stroke:#19df54/);
   assert.match(css, /\.cab-view\[data-view="left"\][\s\S]*?scale\(2\.2\)/);
   assert.match(css, /\.cab-view\[data-view="right"\][\s\S]*?scale\(2\.2\)/);
+  assert.match(appSource, /rearLookout = view === 'rearLeft' \|\| view === 'rearRight'/);
+  assert.match(appSource, /classList\.toggle\('rear-lookout-active', rearLookout\)/);
+  assert.match(css, /\.stage\.rear-lookout-active \.cab-view \{ display: none; \}/);
+  assert.match(html, /左后部瞭望/);
+  assert.match(html, /右后部瞭望/);
   assert.match(appSource, /makePhysical\('放大LKJ监控装置'[\s\S]+?\(\) => lkj\.show\(\)/);
 });
 

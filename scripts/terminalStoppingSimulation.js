@@ -11,7 +11,7 @@ import {
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-14';
+} from './terminalStoppingConfig.js?v=terminal-station-15';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 

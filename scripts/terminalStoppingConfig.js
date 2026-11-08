@@ -15,10 +15,12 @@ export function tractionTargetSpeed(notch) {
 // 站场几何与操纵方案分离：后续两段制动可复用同一站台、停车标和信号机。
 export const STATION_GEOMETRY = Object.freeze({
   startOffset: 28497,
-  platformWorldStart: 29373.7,
-  platformWorldEnd: 29883.7,
-  targetWorldDistance: 29873,
-  exitSignalWorldDistance: 29993,
+  entrySignalWorldDistance: 28997.28343853207,
+  platformWorldStart: 29547.1,
+  platformWorldEnd: 30049.1,
+  platformSegmentOrigin: 29549.2,
+  targetWorldDistance: 30041.146157231335,
+  exitSignalWorldDistance: 30161.146157231335,
 });
 
 export const ONE_STAGE_BRAKING_PROFILE = Object.freeze({
@@ -33,6 +35,7 @@ export const ONE_STAGE_BRAKING_PROFILE = Object.freeze({
 const relativeToStart = (worldDistance) => worldDistance - STATION_GEOMETRY.startOffset;
 const targetDistance = relativeToStart(STATION_GEOMETRY.targetWorldDistance);
 const exitSignalDistance = relativeToStart(STATION_GEOMETRY.exitSignalWorldDistance);
+const entryDistance = relativeToStart(STATION_GEOMETRY.entrySignalWorldDistance);
 const brakingPoint = targetDistance - ONE_STAGE_BRAKING_PROFILE.standardBrakeDistance;
 const checkPoint = targetDistance - ONE_STAGE_BRAKING_PROFILE.observation30Remaining;
 const lowSpeedPoint = targetDistance - ONE_STAGE_BRAKING_PROFILE.observation20Remaining;
@@ -55,7 +58,7 @@ export const SCENARIO = Object.freeze({
   lowSpeedPoint,
   exitSignalDistance,
   finishDistance,
-  entryDistance: 500,
+  entryDistance,
   maximumEntrySpeed: 45,
   baselineSpeed: ONE_STAGE_BRAKING_PROFILE.baselineSpeed,
   baselineReduction: ONE_STAGE_BRAKING_PROFILE.baselineReduction,
@@ -82,15 +85,23 @@ export const SCENARIO = Object.freeze({
     startKilometer: 225.591,
   }),
   lineLimits: Object.freeze([
-    Object.freeze({ start: -1_000, end: 500, limit: 80 }),
-    Object.freeze({ start: 500, end: exitSignalDistance + 49, limit: 45 }),
+    Object.freeze({ start: -1_000, end: entryDistance, limit: 80 }),
+    Object.freeze({ start: entryDistance, end: exitSignalDistance + 49, limit: 45 }),
   ]),
   controlTargets: Object.freeze([
     Object.freeze({ distance: exitSignalDistance, speed: 0, holdUntil: exitSignalDistance + 49, serviceDeceleration: 0.56 }),
   ]),
   sourcePlatform: {
-    shape: 'platform-500m.s',
-    uid: 50695,
+    shape: 'platform-102m-no-awning-derived.s',
+    sourceShape: 'platform-300m-no-awning.s',
+    sourceUid: 50695,
+    uid: 906951,
+    segmentCount: 5,
+    segmentStep: 100,
+    segmentLength: 102,
+    originWorldStart: STATION_GEOMETRY.platformSegmentOrigin,
+    lateral: -1.52,
+    vertical: -0.03,
     worldStart: STATION_GEOMETRY.platformWorldStart,
     worldEnd: STATION_GEOMETRY.platformWorldEnd,
   },
@@ -98,16 +109,16 @@ export const SCENARIO = Object.freeze({
     start: 27900,
     end: 30550,
     lateral: 650,
-    entrySignalDistance: 28997,
+    entrySignalDistance: STATION_GEOMETRY.entrySignalWorldDistance,
     redSignalDistance: STATION_GEOMETRY.exitSignalWorldDistance,
   },
   signals: [
-    { id: 'entry', label: '进站信号机', distance: 500, aspect: 'yellow' },
-    { id: 'exit', label: '出站信号机', distance: exitSignalDistance, aspect: 'redYellow' },
+    { id: 'entry', label: '进站信号机', distance: entryDistance, aspect: 'yellow', sourceUid: 51755, sourceShape: 'jinzhan.s' },
+    { id: 'exit', label: '出站信号机', distance: exitSignalDistance, aspect: 'redYellow', sourceUid: 51674, sourceShape: 'chuzhan-halfauto.s' },
   ],
   phases: [
-    { id: 'confirm', start: 0, end: 500, label: '进站确认' },
-    { id: 'prepare', start: 500, end: brakingPoint, label: '起闸准备' },
+    { id: 'confirm', start: 0, end: entryDistance, label: '进站确认' },
+    { id: 'prepare', start: entryDistance, end: brakingPoint, label: '起闸准备' },
     { id: 'observe', start: brakingPoint, end: checkPoint, label: '30 km/h观速' },
     { id: 'correct', start: checkPoint, end: lowSpeedPoint, label: '20 km/h观速' },
     { id: 'align', start: lowSpeedPoint, end: finishDistance, label: '低速对标' },
