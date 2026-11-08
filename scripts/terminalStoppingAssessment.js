@@ -1,4 +1,4 @@
-import { SCENARIO } from './terminalStoppingConfig.js?v=terminal-station-10';
+import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-11';
 
 const between = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
 const clampScore = (value, maximum) => Math.max(0, Math.min(maximum, Math.round(value)));
@@ -17,8 +17,8 @@ export class TerminalStoppingAssessment {
       events.some((event) => event.type === 'traction' && event.value === 0 && event.distance < SCENARIO.brakingPoint),
       Boolean(firstBrake),
       events.some((event) => event.type === 'side-release' && event.value && firstBrake && Math.abs(event.distance - firstBrake.distance) <= 80),
-      events.some((event) => event.type === 'check-point'),
-      events.some((event) => event.type === 'brake-addition'),
+      events.some((event) => event.type === 'speed-30-observation'),
+      events.some((event) => event.type === 'speed-20-observation'),
       events.some((event) => event.type === 'train-stop'),
       events.some((event) => event.type === 'attempt-complete' && event.secured),
       state.completed,
@@ -29,24 +29,27 @@ export class TerminalStoppingAssessment {
   result(state = this.simulation.state) {
     const events = state.events;
     const firstBrake = events.find((event) => event.type === 'brake-application');
-    const brakingPoint = events.find((event) => event.type === 'braking-point');
-    const checkPoint = events.find((event) => event.type === 'check-point');
-    const lowSpeedPoint = events.find((event) => event.type === 'low-speed-point');
-    const additions = events.filter((event) => event.type === 'brake-addition');
+    const entrySignal = events.find((event) => event.type === 'entry-signal');
+    const observe30 = events.find((event) => event.type === 'speed-30-observation');
+    const observe20 = events.find((event) => event.type === 'speed-20-observation');
+    const trainStop = events.find((event) => event.type === 'train-stop');
+    const additions = events.filter((event) => event.type === 'brake-addition' && (!trainStop || event.elapsed < trainStop.elapsed));
     const releasesAfterBrake = firstBrake
       ? events.filter((event) => event.type === 'auto-brake' && event.elapsed > firstBrake.elapsed && event.value === 0)
       : [];
     const secured = events.some((event) => event.type === 'attempt-complete' && event.secured);
 
     let confirmation = 10;
-    if (!events.some((event) => event.type === 'lkj-open')) confirmation -= 4;
-    if (!events.some((event) => event.type === 'callout')) confirmation -= 6;
+    if (!events.some((event) => event.type === 'lkj-open')) confirmation -= 3;
+    if (!events.some((event) => event.type === 'callout')) confirmation -= 4;
+    if (!entrySignal || entrySignal.speed > SCENARIO.maximumEntrySpeed) confirmation -= 3;
 
     let preparation = 15;
     const tractionZero = events.find((event) => event.type === 'traction' && event.value === 0);
     if (!tractionZero || tractionZero.distance >= SCENARIO.brakingPoint) preparation -= 6;
-    if (!firstBrake || !between(firstBrake.remaining, 370, 430)) preparation -= 5;
-    if (!firstBrake || !between(firstBrake.speed, 37, 43)) preparation -= 4;
+    const selectedBrakeDistance = firstBrake ? brakingDistanceForSpeed(firstBrake.speed) : Number.NaN;
+    if (!firstBrake || Math.abs(firstBrake.remaining - selectedBrakeDistance) > 20) preparation -= 5;
+    if (!firstBrake || !between(firstBrake.speed, 39, 42)) preparation -= 4;
 
     let brakeUse = 25;
     if (!firstBrake) brakeUse = 0;
@@ -58,11 +61,13 @@ export class TerminalStoppingAssessment {
     if (events.some((event) => event.type === 'independent-brake-moving')) brakeUse -= 4;
     const sideRelease = events.find((event) => event.type === 'side-release' && event.value);
     if (!sideRelease || !firstBrake || Math.abs(sideRelease.distance - firstBrake.distance) > 80) brakeUse -= 3;
+    const weakAtThirty = observe30 && observe30.remaining < 105;
+    const correctiveAddition = weakAtThirty && additions.some((event) => event.elapsed >= observe30.elapsed && (!observe20 || event.elapsed <= observe20.elapsed));
+    if (weakAtThirty && !correctiveAddition) brakeUse -= 5;
 
     let checkpoints = 20;
-    if (!brakingPoint || !between(brakingPoint.speed, 37, 43)) checkpoints -= 6;
-    if (!checkPoint || !between(checkPoint.speed, 27, 32)) checkpoints -= 9;
-    if (!lowSpeedPoint || !between(lowSpeedPoint.speed, 14, 24)) checkpoints -= 5;
+    if (!observe30 || !between(observe30.remaining, 105, 135)) checkpoints -= 10;
+    if (!observe20 || !between(observe20.remaining, 40, 60)) checkpoints -= 10;
 
     const absoluteError = Math.abs(state.stopError ?? Number.POSITIVE_INFINITY);
     let accuracy = 0;
@@ -112,9 +117,11 @@ export class TerminalStoppingAssessment {
       summary: qualified ? '考评合格' : '考评不合格',
       safetyEvents,
       checkpoints: {
-        braking: brakingPoint?.speed ?? null,
-        check: checkPoint?.speed ?? null,
-        low: lowSpeedPoint?.speed ?? null,
+        entrySpeed: entrySignal?.speed ?? null,
+        initialBrakeSpeed: firstBrake?.speed ?? null,
+        initialBrakeRemaining: firstBrake?.remaining ?? null,
+        observe30Remaining: observe30?.remaining ?? null,
+        observe20Remaining: observe20?.remaining ?? null,
       },
     };
   }

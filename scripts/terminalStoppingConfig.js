@@ -16,16 +16,16 @@ export const SCENARIO = Object.freeze({
   id: 'standardPassenger',
   title: '终到站一段制动精准对标',
   shortTitle: '终到对标',
-  initialSpeed: 42,
+  initialSpeed: 40,
   initialTraction: 1,
   operatingGrade: 0,
   startOffset: 28497,
   targetDistance: 1103,
   platformStart: 877,
   platformEnd: 1187,
-  tractionZeroPoint: 383,
-  brakingPoint: 703,
-  checkPoint: 1003,
+  tractionZeroPoint: 773,
+  brakingPoint: 823,
+  checkPoint: 983,
   lowSpeedPoint: 1053,
   exitSignalDistance: 1664,
   finishDistance: 1125,
@@ -33,6 +33,10 @@ export const SCENARIO = Object.freeze({
   maximumEntrySpeed: 45,
   baselineSpeed: 40,
   baselineReduction: 50,
+  standardBrakeDistance: 280,
+  speedIncrementDistance: 20,
+  observation30Remaining: 120,
+  observation20Remaining: 50,
   targetTolerance: 0.5,
   passTolerance: 2,
   stationName: '大山铺',
@@ -72,13 +76,13 @@ export const SCENARIO = Object.freeze({
   },
   signals: [
     { id: 'entry', label: '进站信号机', distance: 500, aspect: 'yellow' },
-    { id: 'exit', label: '出站信号机', distance: 1664, aspect: 'red' },
+    { id: 'exit', label: '出站信号机', distance: 1664, aspect: 'redYellow' },
   ],
   phases: [
-    { id: 'confirm', start: 0, end: 300, label: '进站确认' },
-    { id: 'prepare', start: 300, end: 703, label: '进站准备' },
-    { id: 'observe', start: 703, end: 1003, label: '初减观察' },
-    { id: 'correct', start: 1003, end: 1053, label: '100 m 校速' },
+    { id: 'confirm', start: 0, end: 500, label: '进站确认' },
+    { id: 'prepare', start: 500, end: 823, label: '起闸准备' },
+    { id: 'observe', start: 823, end: 983, label: '30 km/h观速' },
+    { id: 'correct', start: 983, end: 1053, label: '20 km/h观速' },
     { id: 'align', start: 1053, end: 1125, label: '低速对标' },
   ],
 });
@@ -122,11 +126,16 @@ export function remainingToTarget(distance) {
 }
 
 export function targetCurveSpeed(remaining) {
-  if (remaining >= 400) return 40;
-  if (remaining >= 100) return 30 + ((remaining - 100) / 300) * 10;
-  if (remaining >= 50) return 20 + ((remaining - 50) / 50) * 10;
+  if (remaining >= 280) return 40;
+  if (remaining >= 120) return 30 + ((remaining - 120) / 160) * 10;
+  if (remaining >= 50) return 20 + ((remaining - 50) / 70) * 10;
   if (remaining > 0) return 20 * Math.sqrt(remaining / 50);
   return 0;
+}
+
+export function brakingDistanceForSpeed(speed) {
+  const value = Number(speed) || 0;
+  return SCENARIO.standardBrakeDistance + Math.max(0, value - SCENARIO.baselineSpeed) * SCENARIO.speedIncrementDistance;
 }
 
 export function trainingBand(remaining) {

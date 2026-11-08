@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-10';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-10';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-10';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-10';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-10';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-10';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-11';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-11';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-11';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-11';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-11';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-11';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-10';
+} from './terminalStoppingCandidate.js?v=terminal-station-11';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -19,7 +19,7 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const views = { front: 'HXD1C_front.png', left: 'HXD1C_left_full.png', right: 'HXD1C_right_full.png', rearLeft: 'HXD1C_left.png', rearRight: 'HXD1C_right.png' };
 const brakeNames = ['运转位', '初制位', '常用Ⅱ', '常用Ⅲ', '常用Ⅳ', '紧急位'];
 const autoBrakeFrames = [0, 1, 2, 9, 10, 11];
-const signalFrames = { green: 7, greenYellow: 6, yellow: 5, red: 0 };
+const signalFrames = { green: 7, greenYellow: 6, yellow: 5, redYellow: 1, red: 0 };
 
 let simulation = new TerminalStoppingSimulation('training');
 let assessment = new TerminalStoppingAssessment(simulation);
@@ -41,6 +41,7 @@ let candidateCabReady = false;
 let candidateLoadFailed = false;
 let candidateEntryComplete = false;
 let hornPointerId = null;
+let lastTeachingPauseId = null;
 const hornAudio = new Audio('./assets/audio/HXD1C-horn.wav');
 hornAudio.preload = 'auto';
 hornAudio.loop = true;
@@ -323,8 +324,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-10', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-10', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-11', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-11', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
@@ -366,11 +367,12 @@ async function chooseMode(mode) {
   simulation.addEventListener('complete', showResult);
   localStorage.setItem(`${PROJECT_ID}:last-mode`, mode);
   resultShown = false;
-  $('#mode-name').textContent = mode === 'training' ? '教学训练' : '独立考核';
+  lastTeachingPauseId = null;
+  $('#mode-name').textContent = mode === 'training' ? '教学模式' : '考评模式';
   $('#training-guide').classList.toggle('hidden', mode !== 'training');
   $('#progress-panel-note').textContent = mode === 'training'
-    ? '训练模式显示参考速度带和纠偏提示。'
-    : '考核模式只显示已记录项目，不提示下一步和阈值。';
+    ? '教学模式在关键节点冻结并讲解，不生成成绩。'
+    : '考评模式只显示已记录项目，不提示下一步和阈值。';
   $('#mode-picker').classList.remove('open');
   $('#result-modal').classList.remove('open');
   lkj.close();
@@ -432,7 +434,9 @@ function render() {
   const signalRemaining = Math.max(0, (s.signal?.distance || s.distance) - s.distance);
   const signalName = s.signal?.id === 'exit' ? '出站' : '进站';
   const levelText = { normal: '监控正常', warning: 'LKJ报警', unload: 'LKJ卸载', service: 'LKJ常用制动', emergency: 'LKJ紧急制动' }[s.lkjLevel];
-  $('#status-message').textContent = s.stopped
+  $('#status-message').textContent = s.status === 'teaching-paused'
+    ? '运行已冻结 · 请阅读节点讲解'
+    : s.stopped
     ? `停稳位置 ${formatError(s.stopError)} · 等待防溜操作`
     : `${levelText} · LKJ距${signalName} ${signalRemaining.toFixed(0)} m · 距标 ${Math.max(0, remaining).toFixed(0)} m`;
   $('#guide-speed').textContent = `${s.targetBand.target.toFixed(0)} km/h`;
@@ -446,14 +450,36 @@ function render() {
   renderProgress(progress);
   renderData(s);
   updateMobileLabels(s);
+  syncTeachingPause(s);
   if (cir.root.classList.contains('open')) cir.render();
   if (lkj.open) lkj.render();
   if (s.lkjLevel !== lastAlertLevel && s.lkjLevel !== 'normal') alertTone(s.lkjLevel);
   lastAlertLevel = s.lkjLevel;
 }
 
+function syncTeachingPause(s) {
+  const modal = $('#teaching-pause');
+  const lesson = s.mode === 'training' ? s.teachingPause : null;
+  if (!lesson) {
+    modal.classList.remove('open');
+    modal.setAttribute('aria-hidden', 'true');
+    return;
+  }
+  $('#teaching-title').textContent = lesson.title;
+  $('#teaching-body').textContent = lesson.body;
+  $('#teaching-focus').textContent = lesson.focus;
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+  if (lastTeachingPauseId !== lesson.id) {
+    lkj.close();
+    cir.close();
+    if (lesson.id === 'stop-alignment') selectView('left');
+    lastTeachingPauseId = lesson.id;
+  }
+}
+
 function renderProgress(progress) {
-  const names = ['LKJ查看记录', '信号呼唤记录', '牵引回零记录', '初次制动记录', '单缓操作记录', '100 m断面记录', '追加操作记录', '停车记录', '防溜记录', '任务完成'];
+  const names = ['LKJ查看记录', '信号呼唤记录', '牵引回零记录', '初次制动记录', '单缓操作记录', '30 km/h观速记录', '20 km/h观速记录', '停车记录', '防溜记录', '任务完成'];
   $('#progress-list').innerHTML = names.map((name, index) => `<li class="${progress.checks[index] ? 'done' : 'pending'}">${name}</li>`).join('');
 }
 
@@ -483,15 +509,26 @@ function formatError(error) {
 function showResult() {
   if (resultShown) return;
   resultShown = true;
-  const result = assessment.result();
+  const teaching = simulation.state.mode === 'training';
+  const result = teaching ? null : assessment.result();
   $('#result-name').textContent = currentAttempt?.name || '—';
   $('#result-student-id').textContent = currentAttempt?.studentId || '—';
   $('#result-started-at').textContent = formatAttemptTime(currentAttempt?.startedAt);
   $('#result-finished-at').textContent = formatAttemptTime(new Date());
+  $('.result-card').classList.toggle('teaching-summary', teaching);
+  if (teaching) {
+    $('#result-title').textContent = '教学完成';
+    $('#result-summary').textContent = `已完成制动力判断、起闸、30/20 km/h观速和侧窗对标讲解，用时 ${simulation.state.elapsed.toFixed(0)} s。本模式不生成成绩。`;
+    $('#result-categories').replaceChildren();
+    $('#result-curve').replaceChildren();
+    $('#result-modal').classList.add('open');
+    $('#result-modal').setAttribute('aria-hidden', 'false');
+    return;
+  }
   $('#result-score').textContent = result.score;
   $('#result-grade').textContent = result.summary;
   $('.result-score').classList.toggle('fail', !result.qualified);
-  $('#result-title').textContent = `${simulation.state.mode === 'training' ? '训练' : '考核'}结果`;
+  $('#result-title').textContent = '考评结果';
   $('#result-summary').textContent = `${formatError(result.stopError)}，用时 ${result.duration.toFixed(0)} s。${result.secured ? '停车后制动防溜完成。' : '停车后制动防溜未完成。'}${result.redline ? ' 本次触发安全红线。' : ''}`;
   $('#result-categories').innerHTML = result.categories.map((category) => `<div><span>${category.name}</span><b>${category.score}/${category.maximum}</b></div>`).join('');
   renderReplayCurve();
@@ -507,7 +544,7 @@ function renderReplayCurve() {
   const point = (sample, key) => `${clamp(sample.distance / SCENARIO.targetDistance, 0, 1) * width},${usable - clamp(sample[key], 0, 50) / 50 * usable + 8}`;
   const actual = samples.map((sample) => point(sample, 'speed')).join(' ');
   const target = samples.map((sample) => point(sample, 'target')).join(' ');
-  $('#result-curve').innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="速度距离复盘曲线"><path d="M0 ${usable + 8}H${width}M0 8V${usable + 8}"/><polyline class="curve-target" points="${target}"/><polyline class="curve-actual" points="${actual}"/><line class="curve-check" x1="${SCENARIO.checkPoint / SCENARIO.targetDistance * width}" x2="${SCENARIO.checkPoint / SCENARIO.targetDistance * width}" y1="8" y2="${usable + 8}"/></svg><div><span>绿色：实际速度</span><span>黄色：教学参考曲线</span><span>虚线：100 m校速点</span></div>`;
+  $('#result-curve').innerHTML = `<svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="速度距离复盘曲线"><path d="M0 ${usable + 8}H${width}M0 8V${usable + 8}"/><polyline class="curve-target" points="${target}"/><polyline class="curve-actual" points="${actual}"/><line class="curve-check" x1="${SCENARIO.checkPoint / SCENARIO.targetDistance * width}" x2="${SCENARIO.checkPoint / SCENARIO.targetDistance * width}" y1="8" y2="${usable + 8}"/></svg><div><span>绿色：实际速度</span><span>黄色：教学参考曲线</span><span>虚线：30 km/h时约120 m参照</span></div>`;
 }
 
 function alertTone(level) {
@@ -645,6 +682,11 @@ $('#candidate-form').addEventListener('submit', async (event) => {
 });
 document.querySelectorAll('[data-mode]').forEach((button) => button.addEventListener('click', () => chooseMode(button.dataset.mode)));
 $('#callout').addEventListener('click', () => simulation.command('callout'));
+$('#teaching-continue').addEventListener('click', () => {
+  const returnToCab = simulation.state.teachingPause?.id === 'stop-alignment';
+  simulation.command('teaching-continue');
+  if (returnToCab) selectView('front');
+});
 $('#progress-toggle').addEventListener('click', () => togglePanel($('#progress-panel')));
 $('#rules-toggle').addEventListener('click', () => togglePanel($('#rules-panel')));
 $('#data-toggle').addEventListener('click', () => togglePanel($('#data-panel')));

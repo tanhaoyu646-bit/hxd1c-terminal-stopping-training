@@ -3,7 +3,7 @@ import {
   absoluteKilometerAt,
   lkjControlLimit,
   routeFacilitiesForScenario,
-} from './terminalStoppingConfig.js?v=terminal-station-10';
+} from './terminalStoppingConfig.js?v=terminal-station-11';
 
 const pct = (value, total) => `${value / total * 100}%`;
 const fmt = (value, digits = 0) => Number(value || 0).toFixed(digits);
@@ -193,7 +193,7 @@ export class LkjRuntime {
     const targetDistance = Math.max(0, (s.signal.distance || s.distance) - s.distance);
     const signalLabel = s.signal.id === 'clear' ? '通过' : s.signal.label.replace(/信号机/g, '');
     const kilometer = absoluteKilometerAt(scenario, s.distance);
-    const grade = s.signal.aspect === 'green' ? 'LC' : s.signal.aspect === 'green-yellow' ? 'SD1' : 'SD2';
+    const grade = s.signal.aspect === 'green' ? 'LC' : ['green-yellow', 'greenYellow'].includes(s.signal.aspect) ? 'SD1' : 'SD2';
     return `<div class="lkj-native-aspect ${s.signal.aspect}" aria-label="${escapeHtml(this.aspectLabel(s.signal.aspect))}"></div>
       <div class="lkj-speed-grade"><span class="${grade === 'LC' ? 'active' : ''}">LC</span><span class="${grade === 'SD3' ? 'active' : ''}">SD3</span><span class="${grade === 'SD2' ? 'active' : ''}">SD2</span><span class="${grade === 'SD1' ? 'active' : ''}">SD1</span></div>
       <b class="lkj-native-speed">${fmt(s.speed)}</b><b class="lkj-native-limit">${fmt(s.lkjLimit)}</b><b class="lkj-native-distance">${fmt(targetDistance)}</b>
@@ -320,13 +320,14 @@ export class LkjRuntime {
   }
 
   aspectLabel(aspect) {
-    return ({ green: '绿灯', 'green-yellow': '绿黄灯', 'double-yellow': '双黄灯', yellow: '黄灯', red: '红灯' })[aspect] || aspect;
+    return ({ green: '绿灯', greenYellow: '绿黄灯', 'green-yellow': '绿黄灯', 'double-yellow': '双黄灯', yellow: '黄灯', redYellow: '红黄灯', 'red-yellow': '红黄灯', red: '红灯' })[aspect] || aspect;
   }
 
   eventLabel(type) {
     return ({
       'attempt-start': '任务开始', 'auto-brake': '自阀操作', traction: '牵引操作', callout: '信号呼唤', 'lkj-level': '监控状态',
-      'braking-point': '通过400米点', 'check-point': '通过100米点', 'low-speed-point': '通过50米点',
+      'entry-signal': '越过进站信号机', 'braking-point': '通过280米起闸点', 'check-point': '通过120米参照点', 'low-speed-point': '通过50米参照点',
+      'speed-30-observation': '30 km/h观速', 'speed-20-observation': '20 km/h观速',
       'train-stop': '列车停稳', 'brake-addition': '自阀追加', 'independent-brake': '单阀操作',
       'side-release': '单缓操作', 'attempt-complete': '停车防溜完成', 'lkj-ack': '报警确认',
       'lkj-start-align': '开车对标', 'lkj-position-correct': '车位校正', 'lkj-mark': '定标记录', 'lkj-patrol': '巡检记录',

@@ -1,5 +1,5 @@
 import * as THREE from '../lib/three/three.module.js';
-import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-10';
+import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-11';
 
 export class TerminalStoppingScene extends MstsRouteScene {
   constructor(canvas, scenario, mode = 'training') {
@@ -69,9 +69,9 @@ export class TerminalStoppingScene extends MstsRouteScene {
   buildDistanceAids() {
     const scenario = this.stoppingScenario;
     const aids = [
-      { distance: scenario.brakingPoint, label: '400 m 初减点' },
-      { distance: scenario.checkPoint, label: '100 m 校速点' },
-      { distance: scenario.lowSpeedPoint, label: '50 m 观察点' },
+      { distance: scenario.brakingPoint, label: '280 m 起闸点' },
+      { distance: scenario.checkPoint, label: '30 km/h · 120 m' },
+      { distance: scenario.lowSpeedPoint, label: '20 km/h · 50 m' },
     ];
     for (const aid of aids) {
       const root = new THREE.Group();

@@ -3,13 +3,14 @@ import {
   SCENARIO,
   DYNAMIC_BRAKE_MAX,
   TRACTION_MAX,
+  brakingDistanceForSpeed,
   lkjControlLimit,
   phaseAt,
   remainingToTarget,
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-10';
+} from './terminalStoppingConfig.js?v=terminal-station-11';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -63,12 +64,14 @@ export class TerminalStoppingSimulation extends EventTarget {
       stopDistance: null,
       stopError: null,
       stopSpeed: null,
+      teachingPause: null,
       completed: false,
       events: [],
       samples: [],
     };
     this.lastSampleAt = -1;
     this.crossed = new Set();
+    this.teachingSeen = new Set();
     this.dispatchEvent(new CustomEvent('reset', { detail: this.state }));
     return this.state;
   }
@@ -77,6 +80,7 @@ export class TerminalStoppingSimulation extends EventTarget {
     if (this.state.status === 'ready') {
       this.state.status = 'running';
       this.log('attempt-start', { mode: this.state.mode });
+      if (this.state.mode === 'training') this.pauseTeaching('brake-strength');
       this.emitChange();
     }
   }
@@ -84,6 +88,15 @@ export class TerminalStoppingSimulation extends EventTarget {
   command(type, value) {
     const s = this.state;
     if (s.completed) return false;
+    if (type === 'teaching-continue') {
+      if (s.mode !== 'training' || s.status !== 'teaching-paused' || !s.teachingPause) return false;
+      this.teachingSeen.add(s.teachingPause.id);
+      this.log('teaching-continue', { lesson: s.teachingPause.id });
+      s.teachingPause = null;
+      s.status = 'running';
+      this.emitChange();
+      return true;
+    }
     if (s.status === 'ready' && type !== 'lkj-open') this.start();
     const previous = {
       traction: s.traction,
@@ -192,6 +205,7 @@ export class TerminalStoppingSimulation extends EventTarget {
     s.locomotiveCylinder += (desiredLoco - s.locomotiveCylinder) * (1 - Math.exp(-dt / 1.4));
 
     const previousDistance = s.distance;
+    const previousSpeed = s.speed;
     if (!s.stopped) {
       const speedMps = s.speed / 3.6;
       const rollingResistance = s.speed > 0.2 ? 28_000 + speedMps * speedMps * 8 : 0;
@@ -203,7 +217,9 @@ export class TerminalStoppingSimulation extends EventTarget {
       s.electricBrakeForce = electricBrake;
       s.tractionCurrent = tractionForce / 550;
       s.balanceSpeed = s.speed;
-      const lowStageForce = automaticCylinder * 600;
+      // 标准旅客列车工况：40 km/h、50 kPa 初减压，制动距离约280 m。
+      // 保留列车管传播和制动缸建立过程，只校准稳定制动力。
+      const lowStageForce = automaticCylinder * 2_092;
       const highStageForce = Math.max(0, automaticCylinder - 110) * 4_000;
       const pneumaticForce = lowStageForce + highStageForce;
       const netForce = tractionForce - electricBrake - rollingResistance - pneumaticForce;
@@ -222,7 +238,7 @@ export class TerminalStoppingSimulation extends EventTarget {
     s.signal = signalAt(s.distance);
     s.lkjLimit = lkjControlLimit(s.distance);
     s.lkjModeLimit = s.lkjLimit;
-    this.updateWorkflow(previousDistance);
+    this.updateWorkflow(previousDistance, previousSpeed);
     this.updateLkjProtection();
 
     if (s.elapsed - this.lastSampleAt >= 0.25) {
@@ -253,9 +269,10 @@ export class TerminalStoppingSimulation extends EventTarget {
     this.emitChange();
   }
 
-  updateWorkflow(previousDistance) {
+  updateWorkflow(previousDistance, previousSpeed) {
     const s = this.state;
     const checkpoints = [
+      ['entry-signal', SCENARIO.entryDistance],
       ['braking-point', SCENARIO.brakingPoint],
       ['check-point', SCENARIO.checkPoint],
       ['low-speed-point', SCENARIO.lowSpeedPoint],
@@ -266,6 +283,23 @@ export class TerminalStoppingSimulation extends EventTarget {
         this.crossed.add(id);
         this.log(id, { checkpointDistance: distance });
       }
+    }
+    const hasInitialBrake = s.events.some((event) => event.type === 'brake-application');
+    const crossedThirty = hasInitialBrake && previousSpeed > 30 && s.speed <= 30 && !this.crossed.has('speed-30-observation');
+    const crossedTwenty = hasInitialBrake && previousSpeed > 20 && s.speed <= 20 && !this.crossed.has('speed-20-observation');
+    if (crossedThirty) {
+      this.crossed.add('speed-30-observation');
+      this.log('speed-30-observation');
+    }
+    if (crossedTwenty) {
+      this.crossed.add('speed-20-observation');
+      this.log('speed-20-observation');
+    }
+    if (s.mode === 'training') {
+      if (previousDistance < SCENARIO.entryDistance && s.distance >= SCENARIO.entryDistance) this.pauseTeaching('entry-reference');
+      else if (previousDistance < SCENARIO.brakingPoint && s.distance >= SCENARIO.brakingPoint) this.pauseTeaching('initial-brake');
+      else if (crossedThirty) this.pauseTeaching('observe-30');
+      else if (crossedTwenty) this.pauseTeaching('observe-20');
     }
     if (!s.stopped) {
       if (s.distance >= SCENARIO.lowSpeedPoint) s.workflowStage = 'alignment';
@@ -285,7 +319,58 @@ export class TerminalStoppingSimulation extends EventTarget {
     s.stopSpeed = s.speed;
     s.speed = 0;
     this.log('train-stop', { stopDistance: s.stopDistance, stopError: s.stopError });
+    if (s.mode === 'training') this.pauseTeaching('stop-alignment');
     this.maybeCompleteSecure();
+  }
+
+  pauseTeaching(id) {
+    const s = this.state;
+    if (s.mode !== 'training' || this.teachingSeen.has(id) || s.teachingPause) return;
+    const remaining = Math.max(0, remainingToTarget(s.distance));
+    const exitRemaining = Math.max(0, SCENARIO.exitSignalDistance - s.distance);
+    const stopToExit = SCENARIO.exitSignalDistance - SCENARIO.targetDistance;
+    const selectedBrakeDistance = brakingDistanceForSpeed(s.speed);
+    const lessons = {
+      'brake-strength': {
+        title: '先判断列车制动力',
+        body: '实际值乘应通过始发或接班后的贯通试验判断制动力。自阀减压50 kPa后，10秒内速度下降超过5 km/h，可作为标准制动力参考。',
+        focus: '本场景采用标准旅客列车：40 km/h、50 kPa，基准制动距离约280 m。',
+      },
+      'entry-reference': {
+        title: '用LKJ确定起闸地点',
+        body: `已越过进站信号机，机车信号转红黄灯。本场景停车标至出站信号机约${stopToExit.toFixed(0)} m，标准制动距离280 m。`,
+        focus: `两者相加，LKJ距出站约${(stopToExit + SCENARIO.standardBrakeDistance).toFixed(0)} m时，以约40 km/h、50 kPa实施初次减压。`,
+      },
+      'initial-brake': {
+        title: '实施初次减压',
+        body: `当前LKJ距出站约${exitRemaining.toFixed(0)} m、距停车标约${remaining.toFixed(0)} m、速度${s.speed.toFixed(1)} km/h；按当前速度计算的制动距离约${selectedBrakeDistance.toFixed(0)} m。`,
+        focus: '牵引回零，自阀置初制位，初次减压量不得低于50 kPa；随后观察30 km/h和20 km/h两个速度点。',
+      },
+      'observe-30': {
+        title: '30 km/h观速',
+        body: `速度降至30 km/h时，当前距停车标约${remaining.toFixed(0)} m；标准参照约120 m。`,
+        focus: remaining < 105
+          ? '距离偏小，说明制动力偏弱或起闸偏晚；待排风停止后适时追加，追加减压量不得超过初次减压量。'
+          : remaining > 135
+            ? '距离偏大，说明制动力偏强或起闸偏早；不要盲目追加，继续观察。'
+            : '距离处于标准范围，保持50 kPa制动并继续观察。',
+      },
+      'observe-20': {
+        title: '20 km/h观速',
+        body: `速度降至20 km/h时，当前距停车标约${remaining.toFixed(0)} m；标准参照约50 m。`,
+        focus: '根据剩余距离和实际减速趋势决定是否小量追加，避免频繁调整或缓解。',
+      },
+      'stop-alignment': {
+        title: '侧窗对标与停车防溜',
+        body: `列车已停稳，停车误差为${Math.abs(s.stopError || 0).toFixed(2)} m。停车位置以停车标与司机侧窗横向对齐为准。`,
+        focus: '确认停稳后，自阀追加至减压100 kPa以上，单阀置全制动位。教学模式只讲解，不生成成绩。',
+      },
+    };
+    const lesson = lessons[id];
+    if (!lesson) return;
+    s.teachingPause = { id, ...lesson };
+    s.status = 'teaching-paused';
+    this.log('teaching-pause', { lesson: id });
   }
 
   maybeCompleteSecure() {
@@ -333,21 +418,17 @@ export class TerminalStoppingSimulation extends EventTarget {
       ? '停车后：自阀追加至减压 100 kPa 以上，单阀置全制动位'
       : '停车防溜完成';
     if (remaining > SCENARIO.targetDistance - SCENARIO.tractionZeroPoint) {
-      return '进站确认：查看 LKJ、确认进站黄灯并呼唤，距标约 720 m 时牵引回零';
+      return '进站确认：查看LKJ、确认进站黄灯并呼唤；准备在起闸前将牵引回零';
     }
-    if (remaining > 400) return s.traction === 0
+    if (remaining > SCENARIO.standardBrakeDistance) return s.traction === 0
       ? s.distance < SCENARIO.entryDistance
         ? '牵引已回零：保持瞭望，准备越过进站信号机'
-        : `进站后以LKJ为主：距出站约 ${exitRemaining.toFixed(0)} m，准备在约 960 m 初减`
+        : `进站后以LKJ为主：距出站约 ${exitRemaining.toFixed(0)} m，准备在约 841 m 初减`
       : '已到牵引回零点：立即将牵引手柄回零';
     if (!hasInitialBrake) return `LKJ距出站约 ${exitRemaining.toFixed(0)} m：立即实施约 50 kPa 初减压`;
-    if (remaining > 100) return `LKJ距出站 ${exitRemaining.toFixed(0)} m：保持初减，参考 ${s.targetBand.minimum.toFixed(0)}–${s.targetBand.maximum.toFixed(0)} km/h`;
-    if (remaining > 50) return s.speed > 31
-      ? 'LKJ距出站约660 m，校速偏高：排风停止后追加'
-      : s.speed < 27
-        ? 'LKJ距出站约660 m，校速偏低：稳住，不要急于追加或缓解'
-        : 'LKJ距出站约660 m，校速合适：小量追加，准备低速对标';
-    return 'LKJ距出站约610 m进入低速对标；停车标仅作目视辅助';
+    if (s.speed > 30) return '保持50 kPa初减；速度降至30 km/h时检查距标是否约120 m';
+    if (s.speed > 20) return '30 km/h观速已过；速度降至20 km/h时检查距标是否约50 m';
+    return '20 km/h观速后低速对标；停车标应与司机侧窗横向对齐';
   }
 
   emitChange() {
