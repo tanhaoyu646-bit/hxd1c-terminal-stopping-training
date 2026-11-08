@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#06131d">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23061925'/%3E%3Cpath d='M13 39h38M18 39V20h28v19M24 48l5-9m11 9-5-9' stroke='%2358d7ff' stroke-width='5' fill='none'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%23f0c457'/%3E%3Ccircle cx='39' cy='29' r='3' fill='%23f0c457'/%3E%3C/svg%3E">
   <title>HXD1C 终到对标停车虚拟实训</title>
-  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-11">
+  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-12">
 </head>
 <body class="candidate-entry-active">
   <section id="candidate-gate" class="candidate-gate" role="dialog" aria-modal="true" aria-labelledby="candidate-title">
@@ -43,14 +43,13 @@
         <button type="button" id="progress-toggle" class="toolbar-button">过程记录 <b id="progress-count">0/10</b></button>
         <button type="button" id="rules-toggle" class="toolbar-button">任务说明</button>
         <button type="button" id="view-toggle" class="toolbar-button">视角</button>
-        <button type="button" id="data-toggle" class="toolbar-button">运行数据</button>
         <button type="button" id="mobile-operations-toggle" class="toolbar-button mobile-only" aria-expanded="false">操作</button>
         <button type="button" id="fullscreen" class="toolbar-button icon-button" aria-label="全屏">⛶</button>
       </header>
 
       <section id="mobile-operations" class="mobile-operations" aria-label="手机操作台" aria-hidden="true">
         <header><b>操作台</b><button type="button" data-mobile-close aria-label="关闭操作台">×</button></header>
-        <div class="mobile-control-row"><span>牵引／电制动 <b data-mobile-traction>牵引 1级</b></span><button type="button" data-mobile-command="traction-down">−</button><button type="button" data-mobile-command="traction-zero">0</button><button type="button" data-mobile-command="traction-up">＋</button></div>
+        <div class="mobile-control-row"><span>牵引／电制动 <b data-mobile-traction>牵引 4级 / 40 km/h</b></span><button type="button" data-mobile-command="traction-down">−</button><button type="button" data-mobile-command="traction-zero">0</button><button type="button" data-mobile-command="traction-up">＋</button></div>
         <div class="mobile-control-row"><span>自阀 <b data-mobile-auto>运转位</b></span><button type="button" data-mobile-command="auto-down">−</button><button type="button" data-mobile-command="auto-up">＋</button></div>
         <div class="mobile-control-row"><span>单阀 <b data-mobile-independent>缓解位</b></span><button type="button" data-mobile-command="independent-down">−</button><button type="button" data-mobile-command="independent-up">＋</button></div>
         <div class="mobile-device-row"><button type="button" data-mobile-command="lkj">LKJ</button><button type="button" data-mobile-command="cir">CIR</button></div>
@@ -81,11 +80,6 @@
           <li><b>考评要点：</b>进站速度不超过45 km/h、起闸速度与距离匹配、30/20 km/h两个观速点距离正确、停车误差不超过±0.5 m并完成防溜。</li>
           <li>停车误差 ±2 m 内保留合格可能；越标 10 m 以上、停车标后仍以 3 km/h 以上运行、触发 LKJ 常用/紧急制动、运行中换向或停车后再次加载均为安全红线。</li>
         </ul>
-      </aside>
-
-      <aside id="data-panel" class="side-panel data-panel" aria-hidden="true">
-        <div class="panel-head"><strong>运行数据</strong><button data-close-panel aria-label="关闭">×</button></div>
-        <dl id="run-data"></dl>
       </aside>
 
       <section id="training-guide" class="training-guide" aria-live="polite">
@@ -157,6 +151,6 @@
       </section>
     </section>
   </main>
-  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-11"></script>
+  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-12"></script>
 </body>
 </html>

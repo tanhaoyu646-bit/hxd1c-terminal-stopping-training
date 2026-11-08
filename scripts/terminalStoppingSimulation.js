@@ -4,13 +4,14 @@ import {
   DYNAMIC_BRAKE_MAX,
   TRACTION_MAX,
   brakingDistanceForSpeed,
+  lkjCurvesAt,
   lkjControlLimit,
   phaseAt,
   remainingToTarget,
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-11';
+} from './terminalStoppingConfig.js?v=terminal-station-12';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -53,8 +54,8 @@ export class TerminalStoppingSimulation extends EventTarget {
       phase: phaseAt(0),
       targetBand: trainingBand(SCENARIO.targetDistance),
       lkjLimit: lkjControlLimit(0),
-      lkjLineLimit: 80,
-      lkjModeLimit: lkjControlLimit(0),
+      lkjLineLimit: lkjCurvesAt(0).lineLimit,
+      lkjModeLimit: lkjCurvesAt(0).modeLimit,
       lkjLevel: 'normal',
       lkjAcknowledged: true,
       lkjForcedBrake: 0,
@@ -209,21 +210,29 @@ export class TerminalStoppingSimulation extends EventTarget {
     if (!s.stopped) {
       const speedMps = s.speed / 3.6;
       const rollingResistance = s.speed > 0.2 ? 28_000 + speedMps * speedMps * 8 : 0;
-      const tractionForce = s.traction > 0 && s.autoBrake === 0 && s.lkjForcedBrake === 0
-        ? s.traction * 35_000 * clamp(1.08 - s.speed / 180, 0.45, 1)
+      const mass = 900_000;
+      const speedError = s.tractionTargetSpeed - s.speed;
+      const tractionEnvelope = Math.min(520_000, 7_200_000 / Math.max(.5, speedMps));
+      const tractionAuthority = s.traction > 0 ? clamp(.72 + .28 * s.traction / TRACTION_MAX, 0, 1) : 0;
+      const holdingForce = rollingResistance;
+      const controllerForce = holdingForce + speedError * mass * .0075;
+      // 与途中调速项目一致：正级位是目标速度给定。达到或超过给定速度即卸载，
+      // 低于目标速度时才按阻力和速度偏差恢复牵引力。
+      const tractionForce = s.traction > 0 && speedError > 0 && s.autoBrake === 0 && s.lkjForcedBrake === 0 && s.lkjLevel !== 'unload'
+        ? clamp(controllerForce, 0, tractionAuthority * tractionEnvelope)
         : 0;
       const electricBrake = s.traction < 0 ? Math.abs(s.traction) * 42_000 : 0;
       s.tractionForce = tractionForce;
       s.electricBrakeForce = electricBrake;
-      s.tractionCurrent = tractionForce / 550;
-      s.balanceSpeed = s.speed;
+      s.tractionCurrent += (tractionForce / 310 - s.tractionCurrent) * (1 - Math.exp(-dt / .45));
+      s.balanceSpeed = s.tractionTargetSpeed;
       // 标准旅客列车工况：40 km/h、50 kPa 初减压，制动距离约280 m。
       // 保留列车管传播和制动缸建立过程，只校准稳定制动力。
-      const lowStageForce = automaticCylinder * 2_092;
+      const lowStageForce = automaticCylinder * 2_051;
       const highStageForce = Math.max(0, automaticCylinder - 110) * 4_000;
       const pneumaticForce = lowStageForce + highStageForce;
       const netForce = tractionForce - electricBrake - rollingResistance - pneumaticForce;
-      const newAcceleration = netForce / 900_000;
+      const newAcceleration = netForce / mass;
       s.acceleration += (newAcceleration - s.acceleration) * (1 - Math.exp(-dt / 0.65));
       s.speed = Math.max(0, s.speed + s.acceleration * dt * 3.6);
       s.distance += s.speed / 3.6 * dt;
@@ -236,8 +245,10 @@ export class TerminalStoppingSimulation extends EventTarget {
     s.targetBand = trainingBand(remaining);
     s.phase = phaseAt(s.distance, s.stopped);
     s.signal = signalAt(s.distance);
-    s.lkjLimit = lkjControlLimit(s.distance);
-    s.lkjModeLimit = s.lkjLimit;
+    const lkjCurves = lkjCurvesAt(s.distance);
+    s.lkjLineLimit = lkjCurves.lineLimit;
+    s.lkjModeLimit = lkjCurves.modeLimit;
+    s.lkjLimit = lkjCurves.activeLimit;
     this.updateWorkflow(previousDistance, previousSpeed);
     this.updateLkjProtection();
 

@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-11';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-11';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-11';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-11';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-11';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-11';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-12';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-12';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-12';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-12';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-12';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-12';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-11';
+} from './terminalStoppingCandidate.js?v=terminal-station-12';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -261,6 +261,9 @@ function createCabControls() {
         startValue: simulation.state[stateKey], min, max, step, moved: false, sideReleaseEngaged: false,
       };
       try { event.currentTarget.setPointerCapture?.(event.pointerId); } catch { /* window listeners keep the drag active */ }
+      event.currentTarget.addEventListener('pointerup', finishControlDrag, { once: true });
+      event.currentTarget.addEventListener('pointercancel', finishControlDrag, { once: true });
+      event.currentTarget.addEventListener('lostpointercapture', finishControlDrag, { once: true });
     };
     sprite.addEventListener('pointerdown', begin);
     const badge = id === 'auto' ? elements.autoBadge : id === 'independent' ? elements.independentBadge : elements.tractionBadge;
@@ -312,20 +315,26 @@ window.addEventListener('pointermove', (event) => {
   simulation.command(activeDrag.id === 'auto' ? 'auto-brake' : activeDrag.id === 'independent' ? 'independent-brake' : 'traction', value);
 }, { passive: false });
 function finishControlDrag(event) {
-  if (!activeDrag || (event?.pointerId !== undefined && activeDrag.pointerId !== event.pointerId)) return;
+  if (!activeDrag) {
+    if (simulation.state.sideRelease) simulation.command('side-release', false);
+    return;
+  }
+  if (event?.pointerId !== undefined && activeDrag.pointerId !== event.pointerId) return;
   if (activeDrag.sideReleaseEngaged) simulation.command('side-release', false);
   if (activeDrag.moved) suppressControlClickUntil = performance.now() + 350;
   activeDrag = null;
 }
-window.addEventListener('pointerup', finishControlDrag);
-window.addEventListener('pointercancel', finishControlDrag);
+document.addEventListener('pointerup', finishControlDrag, true);
+document.addEventListener('pointercancel', finishControlDrag, true);
+window.addEventListener('blur', () => finishControlDrag());
+window.addEventListener('pagehide', () => finishControlDrag());
 
 let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-11', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-11', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-12', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-12', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
@@ -427,7 +436,7 @@ function render() {
   elements.currentBars.forEach((bar, index) => { bar.style.transform = `scaleY(${clamp((s.tractionCurrent - index * 18) / (index < 2 ? 1000 : 800), .02, 1)})`; });
   elements.autoBadge.querySelector('span').textContent = brakeNames[s.autoBrake];
   elements.independentBadge.querySelector('span').textContent = s.independentBrake ? `${s.independentBrake}级` : '缓解位';
-  elements.tractionBadge.querySelector('span').textContent = s.traction > 0 ? `牵引 ${s.traction}级` : s.traction < 0 ? `电制 ${Math.abs(s.traction)}级` : '零位';
+  elements.tractionBadge.querySelector('span').textContent = s.traction > 0 ? `牵引 ${s.traction}级 / ${s.tractionTargetSpeed} km/h` : s.traction < 0 ? `电制 ${Math.abs(s.traction)}级` : '零位';
   elements.directionBadge.querySelector('span').textContent = s.direction === 'F' ? '前进位' : s.direction === 'R' ? '后退位' : '中立位';
   $('#phase-name').textContent = s.phase?.label || '进站对标';
   const remaining = SCENARIO.targetDistance - s.distance;
@@ -448,7 +457,6 @@ function render() {
   const progress = assessment.progress(s);
   $('#progress-count').textContent = `${progress.done}/${progress.total}`;
   renderProgress(progress);
-  renderData(s);
   updateMobileLabels(s);
   syncTeachingPause(s);
   if (cir.root.classList.contains('open')) cir.render();
@@ -481,17 +489,6 @@ function syncTeachingPause(s) {
 function renderProgress(progress) {
   const names = ['LKJ查看记录', '信号呼唤记录', '牵引回零记录', '初次制动记录', '单缓操作记录', '30 km/h观速记录', '20 km/h观速记录', '停车记录', '防溜记录', '任务完成'];
   $('#progress-list').innerHTML = names.map((name, index) => `<li class="${progress.checks[index] ? 'done' : 'pending'}">${name}</li>`).join('');
-}
-
-function renderData(s) {
-  const rows = [
-    ['速度', `${s.speed.toFixed(1)} km/h`], ['参考速度', s.mode === 'training' ? `${s.targetBand.target.toFixed(0)} km/h` : '已隐藏'],
-    ['LKJ距下一信号', `${Math.max(0, (s.signal?.distance || s.distance) - s.distance).toFixed(0)} m`], ['距停车标', `${Math.max(0, SCENARIO.targetDistance - s.distance).toFixed(0)} m`],
-    ['停车误差', s.stopError == null ? '—' : formatError(s.stopError)], ['列车管', `${s.trainPipe.toFixed(0)} kPa`],
-    ['减压量', `${Math.max(0, 600 - s.trainPipe).toFixed(0)} kPa`],
-    ['机车制动缸', `${s.locomotiveCylinder.toFixed(0)} kPa`], ['自阀', brakeNames[s.autoBrake]],
-  ];
-  $('#run-data').innerHTML = rows.map(([key, value]) => `<div><dt>${key}</dt><dd>${value}</dd></div>`).join('');
 }
 
 function updateMobileLabels(s) {
@@ -689,7 +686,6 @@ $('#teaching-continue').addEventListener('click', () => {
 });
 $('#progress-toggle').addEventListener('click', () => togglePanel($('#progress-panel')));
 $('#rules-toggle').addEventListener('click', () => togglePanel($('#rules-panel')));
-$('#data-toggle').addEventListener('click', () => togglePanel($('#data-panel')));
 $('#mobile-operations-toggle').addEventListener('click', () => {
   const panel = $('#mobile-operations');
   const open = !panel.classList.contains('open');

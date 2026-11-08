@@ -17,7 +17,7 @@ export const SCENARIO = Object.freeze({
   title: '终到站一段制动精准对标',
   shortTitle: '终到对标',
   initialSpeed: 40,
-  initialTraction: 1,
+  initialTraction: 4,
   operatingGrade: 0,
   startOffset: 28497,
   targetDistance: 1103,
@@ -56,7 +56,8 @@ export const SCENARIO = Object.freeze({
     startKilometer: 225.591,
   }),
   lineLimits: Object.freeze([
-    Object.freeze({ start: -1_000, end: 1_600, limit: 80 }),
+    Object.freeze({ start: -1_000, end: 500, limit: 80 }),
+    Object.freeze({ start: 500, end: 1_713, limit: 45 }),
   ]),
   controlTargets: Object.freeze([
     Object.freeze({ distance: 1_664, speed: 0, holdUntil: 1_713, serviceDeceleration: 0.56 }),
@@ -144,12 +145,31 @@ export function trainingBand(remaining) {
   return { target, minimum: Math.max(0, target - tolerance), maximum: target + tolerance };
 }
 
+export function lineLimitAt(distance) {
+  return SCENARIO.lineLimits.find((segment) => distance >= segment.start && distance < segment.end)?.limit
+    ?? SCENARIO.lkj.speedGrade;
+}
+
+export function lkjCurvesAt(distance) {
+  const lineLimit = lineLimitAt(distance);
+  let modeLimit = SCENARIO.lkj.speedGrade;
+  for (const target of SCENARIO.controlTargets) {
+    if (distance > target.holdUntil) continue;
+    if (distance >= target.distance) {
+      modeLimit = Math.min(modeLimit, target.speed);
+      continue;
+    }
+    const remaining = target.distance - distance;
+    const targetMps = target.speed / 3.6;
+    const envelope = Math.sqrt(targetMps ** 2 + 2 * target.serviceDeceleration * remaining) * 3.6;
+    modeLimit = Math.min(modeLimit, Math.max(target.speed, envelope));
+  }
+  return { lineLimit, modeLimit, activeLimit: Math.min(lineLimit, modeLimit) };
+}
+
 export function lkjControlLimit(scenarioOrDistance, optionalDistance) {
   const distance = optionalDistance == null ? scenarioOrDistance : optionalDistance;
-  const remaining = Math.max(0, SCENARIO.exitSignalDistance - distance);
-  const serviceDeceleration = 0.56;
-  const curve = Math.sqrt(2 * serviceDeceleration * remaining) * 3.6;
-  return Math.max(0, Math.min(80, curve));
+  return lkjCurvesAt(distance).activeLimit;
 }
 
 export function routeFacilitiesForScenario() {

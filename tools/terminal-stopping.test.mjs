@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { SCENARIO, TRACTION_MAX, brakingDistanceForSpeed, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
+import { SCENARIO, TRACTION_MAX, brakingDistanceForSpeed, lkjCurvesAt, targetCurveSpeed, trainingBand } from '../scripts/terminalStoppingConfig.js';
 import { TerminalStoppingSimulation } from '../scripts/terminalStoppingSimulation.js';
 import { TerminalStoppingAssessment } from '../scripts/terminalStoppingAssessment.js';
 import {
@@ -59,6 +59,28 @@ test('教学基线采用40公里50千帕280米及30/20公里观速点', () => {
   assert.equal(SCENARIO.exitSignalDistance - SCENARIO.checkPoint, 681);
   assert.equal(SCENARIO.exitSignalDistance - SCENARIO.lowSpeedPoint, 611);
   assert.equal(SCENARIO.exitSignalDistance - SCENARIO.targetDistance, 561);
+});
+
+test('牵引4级给定40公里且达到给定速度后不继续加速', () => {
+  const simulation = new TerminalStoppingSimulation('assessment');
+  simulation.start();
+  assert.equal(simulation.state.traction, 4);
+  assert.equal(simulation.state.tractionTargetSpeed, 40);
+  let maximumSpeed = simulation.state.speed;
+  for (let index = 0; index < 1_200; index += 1) {
+    simulation.tick(.05);
+    maximumSpeed = Math.max(maximumSpeed, simulation.state.speed);
+  }
+  assert.ok(maximumSpeed <= 40.05, `maximum speed ${maximumSpeed}`);
+  assert.ok(simulation.state.speed >= 39.8, `held speed ${simulation.state.speed}`);
+});
+
+test('LKJ在进站信号机处将站内线路限速切换为45公里', () => {
+  assert.equal(lkjCurvesAt(SCENARIO.entryDistance - .1).lineLimit, 80);
+  assert.equal(lkjCurvesAt(SCENARIO.entryDistance - .1).activeLimit, 80);
+  assert.equal(lkjCurvesAt(SCENARIO.entryDistance).lineLimit, 45);
+  assert.equal(lkjCurvesAt(SCENARIO.entryDistance).activeLimit, 45);
+  assert.equal(lkjCurvesAt(SCENARIO.targetDistance).activeLimit, 45);
 });
 
 test('正线进站停车使用黄灯且初始位置与进站信号保持足够距离', () => {
@@ -243,6 +265,9 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   assert.match(appSource, /dx > 16/);
   assert.match(appSource, /simulation\.command\('side-release', true\)/);
   assert.match(appSource, /simulation\.command\('side-release', false\)/);
+  assert.match(appSource, /lostpointercapture/);
+  assert.match(appSource, /document\.addEventListener\('pointerup', finishControlDrag, true\)/);
+  assert.match(appSource, /window\.addEventListener\('blur'/);
   assert.match(appSource, /makeNeedle\('speedNeedle'/);
   assert.match(appSource, /makeStateSprite\('locomotive-signal'/);
   assert.match(lkjSource, /lkj-native-monitor/);
@@ -251,6 +276,8 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   assert.match(cirSource, /tail-query/);
   assert.match(html, /data-mobile-command="cir"/);
   assert.doesNotMatch(html, /data-mobile-command="side-release"/);
+  assert.doesNotMatch(html, /id="data-toggle"|id="data-panel"|运行数据/);
+  assert.doesNotMatch(appSource, /renderData\(|#data-toggle|#run-data/);
   assert.doesNotMatch(html, /mobile-control-hint/);
   assert.doesNotMatch(html, /不读取或写入其他训练项目|不会上传到服务器|浏览器存储/);
   assert.match(css, /\.sprite, \.control-position-badge, \.physical-control, \.touch-target \{ pointer-events: auto; \}/);

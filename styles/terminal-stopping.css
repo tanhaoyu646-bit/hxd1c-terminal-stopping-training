@@ -176,11 +176,6 @@ button, .sprite { touch-action: none; }
 .side-panel li.done { color: var(--green); }
 .side-panel li.done::marker { content: "✓  "; }
 .side-panel li.pending::marker { content: "○  "; }
-.data-panel dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
-.data-panel div { padding: 8px; border: 1px solid #214b60; border-radius: 7px; background: #0a2533; }
-.data-panel dt { color: #7ca5b8; font-size: 10px; }
-.data-panel dd { margin: 3px 0 0; color: #f2fbff; font-weight: 700; }
-
 .sprite, .control-position-badge, .physical-control, .touch-target, .original-game-needle, .state-sprite { position: absolute; }
 .sprite, .control-position-badge, .physical-control, .touch-target { pointer-events: auto; }
 .sprite { z-index: 4; background-repeat: no-repeat; filter: drop-shadow(0 3px 2px #0009); }

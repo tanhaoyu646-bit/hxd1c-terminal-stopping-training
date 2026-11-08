@@ -1,4 +1,4 @@
-import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-11';
+import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-12';
 
 const between = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
 const clampScore = (value, maximum) => Math.max(0, Math.min(maximum, Math.round(value)));

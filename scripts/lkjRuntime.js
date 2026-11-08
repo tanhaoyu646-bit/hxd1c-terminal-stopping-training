@@ -3,7 +3,7 @@ import {
   absoluteKilometerAt,
   lkjControlLimit,
   routeFacilitiesForScenario,
-} from './terminalStoppingConfig.js?v=terminal-station-11';
+} from './terminalStoppingConfig.js?v=terminal-station-12';
 
 const pct = (value, total) => `${value / total * 100}%`;
 const fmt = (value, digits = 0) => Number(value || 0).toFixed(digits);
@@ -258,6 +258,11 @@ export class LkjRuntime {
       if (x < CHART.left || x > CHART.right) return '';
       return `<text class="lkj-native-limit-value" x="${x + 5}" y="${this.speedY(target.speed) - 6}">${target.speed}</text>`;
     }).join('');
+    const lineLimitLabels = (scenario.lineLimits || []).map((segment) => {
+      const x = this.chartX(segment.start, s.distance);
+      if (x < CHART.left || x > CHART.right) return '';
+      return `<text class="lkj-native-limit-value" x="${x + 5}" y="${this.speedY(segment.limit) - 6}">${segment.limit}</text>`;
+    }).join('');
     const speedSamples = [...s.samples];
     if (!speedSamples.length || speedSamples.at(-1).distance !== s.distance) speedSamples.push({ distance: s.distance, speed: s.speed });
     const speedPoints = speedSamples
@@ -283,7 +288,7 @@ export class LkjRuntime {
     const trainLength = Math.min(105, Math.max(12, scenario.lkj.carCount * 25 * CHART.pixelsPerMeter));
     return `<div class="lkj-native-monitor level-${s.lkjLevel}"><svg viewBox="0 0 800 615" preserveAspectRatio="none" aria-label="LKJ运行监控曲线">
       <rect class="lkj-speed-scale-bg" x="1" y="${CHART.top}" width="48" height="${CHART.bottom - CHART.top}"/>${speedScale}
-      <polyline class="lkj-native-limit-line" points="${controlPoints.join(' ')}"/>${limitLabels}
+      <polyline class="lkj-native-limit-line" points="${controlPoints.join(' ')}"/>${lineLimitLabels}${limitLabels}
       ${signalMarkers}<line class="lkj-native-position-line" x1="${CHART.position}" y1="${CHART.top}" x2="${CHART.position}" y2="500"/>
       <polyline class="lkj-native-speed-line" points="${speedPoints}"/><polyline class="lkj-grade-line" points="${profile.gradePoints}"/><line class="lkj-grade-zero" x1="${CHART.left}" y1="411" x2="${CHART.right}" y2="411"/>
       <polyline class="lkj-curve-line" points="${profile.curvePoints}"/>${facilities}
