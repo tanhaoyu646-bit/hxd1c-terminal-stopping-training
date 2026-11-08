@@ -23,7 +23,7 @@ function runStandard(mode = 'assessment') {
   let secured = false;
   for (let index = 0; index < 40_000 && !simulation.state.completed; index += 1) {
     const state = simulation.state;
-    if (state.distance >= SCENARIO.tractionZeroPoint && !tractionZero) {
+    if (state.distance >= SCENARIO.brakingPoint - 50 && !tractionZero) {
       simulation.command('traction', 0);
       tractionZero = true;
     }
@@ -130,7 +130,7 @@ test('教学模式在讲解节点冻结且考评模式不冻结', () => {
   assert.equal(assessment.state.teachingPause, null);
 });
 
-test('标准一段制动轨迹可在0.5米内对标并完成停车防溜', () => {
+test('既有一段制动基线保持在0.5米内且旧的制动前回零顺序不再满分', () => {
   const simulation = runStandard();
   const result = new TerminalStoppingAssessment(simulation).result();
   assert.equal(simulation.state.completed, true);
@@ -141,7 +141,48 @@ test('标准一段制动轨迹可在0.5米内对标并完成停车防溜', () =>
   assert.equal(result.secured, true);
   assert.equal(result.redline, false);
   assert.equal(result.qualified, true);
-  assert.equal(result.score, 100);
+  assert.equal(result.categories.find((item) => item.name === '制动前准备').score, 9);
+  assert.equal(result.score, 94);
+});
+
+test('旅客列车先制动稳定5秒后逐级退回主手柄才取得退牵满分', () => {
+  const correct = new TerminalStoppingSimulation('assessment');
+  correct.start();
+  correct.state.distance = SCENARIO.brakingPoint;
+  correct.command('auto-brake', 1);
+  for (let index = 0; index < 102; index += 1) correct.tick(.05);
+  for (const notch of [3, 2, 1, 0]) correct.command('traction', notch);
+  const correctResult = new TerminalStoppingAssessment(correct).result();
+  assert.equal(correctResult.categories.find((item) => item.name === '制动前准备').score, 15);
+  assert.equal(new TerminalStoppingAssessment(correct).progress().checks[2], true);
+
+  const wrong = new TerminalStoppingSimulation('assessment');
+  wrong.start();
+  wrong.command('traction', 0);
+  wrong.state.distance = SCENARIO.brakingPoint;
+  wrong.command('auto-brake', 1);
+  const wrongResult = new TerminalStoppingAssessment(wrong).result();
+  assert.equal(wrongResult.categories.find((item) => item.name === '制动前准备').score, 9);
+  assert.equal(new TerminalStoppingAssessment(wrong).progress().checks[2], false);
+});
+
+test('教学模式必须完成末节点讲解和停车防溜后才结束', () => {
+  const teaching = new TerminalStoppingSimulation('training');
+  teaching.start();
+  teaching.command('teaching-continue');
+  teaching.state.stopped = true;
+  teaching.state.speed = 0;
+  teaching.state.stopError = 0;
+  teaching.state.status = 'running';
+  teaching.pauseTeaching('stop-alignment');
+  for (let index = 0; index < 400; index += 1) teaching.tick(.05);
+  assert.equal(teaching.state.completed, false);
+  teaching.command('teaching-continue');
+  assert.equal(teaching.state.completed, false);
+  teaching.command('auto-brake', 3);
+  teaching.command('independent-brake', 5);
+  for (let index = 0; index < 400 && !teaching.state.completed; index += 1) teaching.tick(.05);
+  assert.equal(teaching.state.completed, true);
 });
 
 test('未按停车目标制动会越标并触发安全红线', () => {
@@ -286,6 +327,8 @@ test('操作台、LKJ与CIR沿用途中调速项目的级位和设备逻辑', ()
   assert.match(css, /-webkit-touch-callout:\s*none/);
   assert.match(css, /\.independent-brake\.side-release-active/);
   assert.match(css, /\.lkj-native-speed-line\{stroke:#19df54/);
+  assert.match(css, /\.cab-view\[data-view="left"\][\s\S]*?scale\(2\.2\)/);
+  assert.match(css, /\.cab-view\[data-view="right"\][\s\S]*?scale\(2\.2\)/);
   assert.match(appSource, /makePhysical\('放大LKJ监控装置'[\s\S]+?\(\) => lkj\.show\(\)/);
 });
 
@@ -308,6 +351,7 @@ test('教学界面采用LKJ起闸距离并保留距停车标辅助值', () => {
   assert.match(appSource, /LKJ距\$\{signalName\}/);
   assert.match(appSource, /距标 \$\{Math\.max\(0, remaining\)/);
   assert.match(sceneSource, /scenario\.targetDistance, -3\.25/);
+  assert.match(sceneSource, /机车\\n停车\\n位置/);
   assert.match(sceneSource, /30 km\/h · 120 m/);
   assert.match(sceneSource, /20 km\/h · 50 m/);
 });

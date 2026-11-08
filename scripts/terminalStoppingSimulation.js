@@ -11,7 +11,7 @@ import {
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-12';
+} from './terminalStoppingConfig.js?v=terminal-station-13';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -91,10 +91,12 @@ export class TerminalStoppingSimulation extends EventTarget {
     if (s.completed) return false;
     if (type === 'teaching-continue') {
       if (s.mode !== 'training' || s.status !== 'teaching-paused' || !s.teachingPause) return false;
-      this.teachingSeen.add(s.teachingPause.id);
-      this.log('teaching-continue', { lesson: s.teachingPause.id });
+      const lessonId = s.teachingPause.id;
+      this.teachingSeen.add(lessonId);
+      this.log('teaching-continue', { lesson: lessonId });
       s.teachingPause = null;
       s.status = 'running';
+      if (lessonId === 'stop-alignment') this.maybeCompleteSecure();
       this.emitChange();
       return true;
     }
@@ -119,7 +121,7 @@ export class TerminalStoppingSimulation extends EventTarget {
       const application = s.autoBrake > 0 && previous.autoBrake === 0;
       if (application) {
         const previousApplications = s.events.filter((event) => event.type === 'brake-application').length;
-        this.log('brake-application', { ordinal: previousApplications + 1, value: s.autoBrake });
+        this.log('brake-application', { ordinal: previousApplications + 1, value: s.autoBrake, traction: s.traction });
         if (previousApplications === 0) s.workflowStage = 'initial-brake';
       }
       if (s.autoBrake > previous.autoBrake && previous.autoBrake > 0) {
@@ -276,7 +278,7 @@ export class TerminalStoppingSimulation extends EventTarget {
     }
     if (!s.stopped && s.distance > SCENARIO.finishDistance) s.lkjForcedBrake = 5;
     if (s.stopped) this.maybeCompleteSecure();
-    if (s.stopped && s.secureElapsed >= 12) this.complete();
+    if (s.mode === 'assessment' && s.stopped && s.secureElapsed >= 12) this.complete();
     this.emitChange();
   }
 
@@ -355,7 +357,7 @@ export class TerminalStoppingSimulation extends EventTarget {
       'initial-brake': {
         title: '实施初次减压',
         body: `当前LKJ距出站约${exitRemaining.toFixed(0)} m、距停车标约${remaining.toFixed(0)} m、速度${s.speed.toFixed(1)} km/h；按当前速度计算的制动距离约${selectedBrakeDistance.toFixed(0)} m。`,
-        focus: '牵引回零，自阀置初制位，初次减压量不得低于50 kPa；随后观察30 km/h和20 km/h两个速度点。',
+        focus: `保持适当低牵引，自阀置初制位，初次减压量不得低于50 kPa；列车稳定降速约${SCENARIO.tractionReleaseDelay}秒后，再逐级退回牵引手柄至零位。`,
       },
       'observe-30': {
         title: '30 km/h观速',
@@ -387,6 +389,7 @@ export class TerminalStoppingSimulation extends EventTarget {
   maybeCompleteSecure() {
     const s = this.state;
     if (!s.stopped || s.completed) return;
+    if (s.mode === 'training' && !this.teachingSeen.has('stop-alignment')) return;
     const reduction = 600 - s.trainPipe;
     if (reduction >= 95 && s.independentBrake >= 5) this.complete();
   }
@@ -428,15 +431,16 @@ export class TerminalStoppingSimulation extends EventTarget {
     if (s.stopped) return 600 - s.trainPipe < 95 || s.independentBrake < 5
       ? '停车后：自阀追加至减压 100 kPa 以上，单阀置全制动位'
       : '停车防溜完成';
-    if (remaining > SCENARIO.targetDistance - SCENARIO.tractionZeroPoint) {
-      return '进站确认：查看LKJ、确认进站黄灯并呼唤；准备在起闸前将牵引回零';
-    }
-    if (remaining > SCENARIO.standardBrakeDistance) return s.traction === 0
-      ? s.distance < SCENARIO.entryDistance
-        ? '牵引已回零：保持瞭望，准备越过进站信号机'
-        : `进站后以LKJ为主：距出站约 ${exitRemaining.toFixed(0)} m，准备在约 841 m 初减`
-      : '已到牵引回零点：立即将牵引手柄回零';
+    if (remaining > SCENARIO.standardBrakeDistance) return s.distance < SCENARIO.entryDistance
+      ? '进站确认：查看LKJ、确认进站黄灯并呼唤，保持适当低牵引'
+      : `进站后以LKJ为主：保持适当低牵引，距出站约 ${exitRemaining.toFixed(0)} m，准备在约 841 m 初减`;
     if (!hasInitialBrake) return `LKJ距出站约 ${exitRemaining.toFixed(0)} m：立即实施约 50 kPa 初减压`;
+    const firstBrake = s.events.find((event) => event.type === 'brake-application');
+    const brakingElapsed = Math.max(0, s.elapsed - (firstBrake?.elapsed || s.elapsed));
+    if (brakingElapsed < SCENARIO.tractionReleaseDelay) {
+      return `保持低牵引，确认列车稳定降速；约 ${Math.ceil(SCENARIO.tractionReleaseDelay - brakingElapsed)} 秒后逐级退回主手柄`;
+    }
+    if (s.traction > 0) return '列车已稳定降速：逐级退回牵引手柄，接近零位稍作停留后回零';
     if (s.speed > 30) return '保持50 kPa初减；速度降至30 km/h时检查距标是否约120 m';
     if (s.speed > 20) return '30 km/h观速已过；速度降至20 km/h时检查距标是否约50 m';
     return '20 km/h观速后低速对标；停车标应与司机侧窗横向对齐';

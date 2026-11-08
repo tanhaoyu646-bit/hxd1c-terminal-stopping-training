@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#06131d">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23061925'/%3E%3Cpath d='M13 39h38M18 39V20h28v19M24 48l5-9m11 9-5-9' stroke='%2358d7ff' stroke-width='5' fill='none'/%3E%3Ccircle cx='25' cy='29' r='3' fill='%23f0c457'/%3E%3Ccircle cx='39' cy='29' r='3' fill='%23f0c457'/%3E%3C/svg%3E">
   <title>HXD1C 终到对标停车虚拟实训</title>
-  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-12">
+  <link rel="stylesheet" href="./styles/terminal-stopping.css?v=terminal-station-13">
 </head>
 <body class="candidate-entry-active">
   <section id="candidate-gate" class="candidate-gate" role="dialog" aria-modal="true" aria-labelledby="candidate-title">
@@ -72,6 +72,7 @@
           <li>贯通试验以自阀减压50 kPa后10秒内速度下降超过5 km/h作为标准制动力参考；本场景按标准制动力建模。</li>
           <li>本场景停车标至出站信号机约561 m；40 km/h、50 kPa的标准制动距离约280 m，因此起闸时LKJ距出站约841 m。</li>
           <li>速度每高于40 km/h约1 km/h，起闸距离增加约20 m；初次减压量不得低于50 kPa。</li>
+          <li>停车制动时先施行约50 kPa初减，确认列车稳定降速约5秒后，再逐级退回牵引手柄，接近零位稍作停留后回零。</li>
           <li>初减后80 m内操作单缓；全程不用动力制动，不在运行中使用单阀，不随意缓解自阀。</li>
           <li>速度降至30 km/h时，距停车标应约120 m；距离偏小时待排风停止后适当追加，追加减压量不得超过初次减压量。</li>
           <li>速度降至20 km/h时，距停车标应约50 m；继续根据减速趋势低速对标。</li>
@@ -151,6 +152,6 @@
       </section>
     </section>
   </main>
-  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-12"></script>
+  <script type="module" src="./scripts/terminalStoppingApp.js?v=terminal-station-13"></script>
 </body>
 </html>

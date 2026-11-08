@@ -1,7 +1,27 @@
-import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-12';
+import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-13';
 
 const between = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
 const clampScore = (value, maximum) => Math.max(0, Math.min(maximum, Math.round(value)));
+
+function tractionRelease(events, firstBrake) {
+  if (!firstBrake) return { correctOrder: false, delayed: false, progressive: false, zero: null };
+  const changes = events.filter((event) => event.type === 'traction' && event.elapsed >= firstBrake.elapsed);
+  const reductions = changes.filter((event) => (
+    Number(event.previous?.traction) > Number(event.value) && Number(event.value) >= 0
+  ));
+  const firstReduction = reductions[0] || null;
+  const zero = changes.find((event) => event.value === 0) || null;
+  const throughZero = zero ? reductions.filter((event) => event.elapsed <= zero.elapsed) : [];
+  const progressive = Boolean(zero && throughZero.length && throughZero.every((event) => (
+    Number(event.previous?.traction) - Number(event.value) === 1
+  )));
+  return {
+    correctOrder: Number(firstBrake.traction) > 0 && Boolean(firstReduction && zero),
+    delayed: Boolean(firstReduction && firstReduction.elapsed - firstBrake.elapsed >= SCENARIO.tractionReleaseDelay),
+    progressive,
+    zero,
+  };
+}
 
 export class TerminalStoppingAssessment {
   constructor(simulation) {
@@ -11,10 +31,11 @@ export class TerminalStoppingAssessment {
   progress(state = this.simulation.state) {
     const events = state.events;
     const firstBrake = events.find((event) => event.type === 'brake-application');
+    const release = tractionRelease(events, firstBrake);
     const checks = [
       events.some((event) => event.type === 'lkj-open'),
       events.some((event) => event.type === 'callout'),
-      events.some((event) => event.type === 'traction' && event.value === 0 && event.distance < SCENARIO.brakingPoint),
+      release.correctOrder && release.delayed && release.progressive,
       Boolean(firstBrake),
       events.some((event) => event.type === 'side-release' && event.value && firstBrake && Math.abs(event.distance - firstBrake.distance) <= 80),
       events.some((event) => event.type === 'speed-30-observation'),
@@ -29,6 +50,7 @@ export class TerminalStoppingAssessment {
   result(state = this.simulation.state) {
     const events = state.events;
     const firstBrake = events.find((event) => event.type === 'brake-application');
+    const release = tractionRelease(events, firstBrake);
     const entrySignal = events.find((event) => event.type === 'entry-signal');
     const observe30 = events.find((event) => event.type === 'speed-30-observation');
     const observe20 = events.find((event) => event.type === 'speed-20-observation');
@@ -45,8 +67,9 @@ export class TerminalStoppingAssessment {
     if (!entrySignal || entrySignal.speed > SCENARIO.maximumEntrySpeed) confirmation -= 3;
 
     let preparation = 15;
-    const tractionZero = events.find((event) => event.type === 'traction' && event.value === 0);
-    if (!tractionZero || tractionZero.distance >= SCENARIO.brakingPoint) preparation -= 6;
+    if (!release.correctOrder) preparation -= 2;
+    if (!release.delayed) preparation -= 2;
+    if (!release.progressive) preparation -= 2;
     const selectedBrakeDistance = firstBrake ? brakingDistanceForSpeed(firstBrake.speed) : Number.NaN;
     if (!firstBrake || Math.abs(firstBrake.remaining - selectedBrakeDistance) > 20) preparation -= 5;
     if (!firstBrake || !between(firstBrake.speed, 39, 42)) preparation -= 4;

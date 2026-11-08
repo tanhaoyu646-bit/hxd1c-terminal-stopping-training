@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-12';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-12';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-12';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-12';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-12';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-12';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-13';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-13';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-13';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-13';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-13';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-13';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-12';
+} from './terminalStoppingCandidate.js?v=terminal-station-13';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -333,8 +333,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-12', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-12', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-13', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-13', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {
@@ -408,7 +408,9 @@ async function chooseMode(mode) {
 
 function selectView(view) {
   selectedView = view;
-  $('#cab-view').src = `./assets/archive-cabview/${views[view]}`;
+  const cabView = $('#cab-view');
+  cabView.src = `./assets/archive-cabview/${views[view]}`;
+  cabView.dataset.view = view;
   overlay.classList.toggle('hidden', view !== 'front');
   if (view !== 'front') cir.close();
   document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === view));
@@ -487,7 +489,7 @@ function syncTeachingPause(s) {
 }
 
 function renderProgress(progress) {
-  const names = ['LKJ查看记录', '信号呼唤记录', '牵引回零记录', '初次制动记录', '单缓操作记录', '30 km/h观速记录', '20 km/h观速记录', '停车记录', '防溜记录', '任务完成'];
+  const names = ['LKJ查看记录', '信号呼唤记录', '制动后逐级退牵记录', '初次制动记录', '单缓操作记录', '30 km/h观速记录', '20 km/h观速记录', '停车记录', '防溜记录', '任务完成'];
   $('#progress-list').innerHTML = names.map((name, index) => `<li class="${progress.checks[index] ? 'done' : 'pending'}">${name}</li>`).join('');
 }
 

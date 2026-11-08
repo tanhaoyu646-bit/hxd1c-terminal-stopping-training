@@ -1,5 +1,5 @@
 import * as THREE from '../lib/three/three.module.js';
-import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-12';
+import { MstsRouteScene } from './mstsRouteScene.js?v=terminal-station-13';
 
 export class TerminalStoppingScene extends MstsRouteScene {
   constructor(canvas, scenario, mode = 'training') {
@@ -33,7 +33,10 @@ export class TerminalStoppingScene extends MstsRouteScene {
     context.font = options.font || 'bold 74px "Microsoft YaHei", sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
-    context.fillText(text, canvas.width / 2, canvas.height / 2);
+    const lines = String(text).split('\n');
+    const lineHeight = options.lineHeight || canvas.height / Math.max(1, lines.length + .35);
+    const firstLine = canvas.height / 2 - (lines.length - 1) * lineHeight / 2;
+    lines.forEach((line, index) => context.fillText(line, canvas.width / 2, firstLine + index * lineHeight));
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.needsUpdate = true;
@@ -45,20 +48,20 @@ export class TerminalStoppingScene extends MstsRouteScene {
     const root = new THREE.Group();
     root.name = 'TERMINAL_STOPPING_MARKER';
     const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(.08, .1, 2.5, 10),
+      new THREE.CylinderGeometry(.065, .085, 2.45, 10),
       new THREE.MeshStandardMaterial({ color: '#d7d9d5', roughness: .7 }),
     );
-    pole.position.y = 1.25;
+    pole.position.y = 1.225;
     root.add(pole);
     const board = new THREE.Mesh(
-      new THREE.PlaneGeometry(2.6, 1.45),
+      new THREE.PlaneGeometry(.88, 1.92),
       new THREE.MeshBasicMaterial({
-        map: this.makeTextTexture('停车', { width: 384, height: 224, background: '#f7f5e9', border: '#173d82', color: '#173d82', font: 'bold 96px "Microsoft YaHei", sans-serif' }),
+        map: this.makeTextTexture('机车\n停车\n位置', { width: 256, height: 560, background: '#f7f7f2', border: '#171717', color: '#171717', font: 'bold 82px "Microsoft YaHei", sans-serif', lineHeight: 142, lineWidth: 12 }),
         side: THREE.DoubleSide,
         toneMapped: false,
       }),
     );
-    board.position.y = 2.75;
+    board.position.y = 2.82;
     board.rotation.y = Math.PI;
     root.add(board);
     this.placeLookoutObject3D(root, scenario.startOffset + scenario.targetDistance, -3.25, 0);
