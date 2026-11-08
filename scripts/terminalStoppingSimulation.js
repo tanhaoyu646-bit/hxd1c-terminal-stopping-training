@@ -11,7 +11,7 @@ import {
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-13';
+} from './terminalStoppingConfig.js?v=terminal-station-14';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -230,7 +230,7 @@ export class TerminalStoppingSimulation extends EventTarget {
       s.balanceSpeed = s.tractionTargetSpeed;
       // 标准旅客列车工况：40 km/h、50 kPa 初减压，制动距离约280 m。
       // 保留列车管传播和制动缸建立过程，只校准稳定制动力。
-      const lowStageForce = automaticCylinder * 2_051;
+      const lowStageForce = automaticCylinder * 2_126;
       const highStageForce = Math.max(0, automaticCylinder - 110) * 4_000;
       const pneumaticForce = lowStageForce + highStageForce;
       const netForce = tractionForce - electricBrake - rollingResistance - pneumaticForce;
@@ -433,7 +433,7 @@ export class TerminalStoppingSimulation extends EventTarget {
       : '停车防溜完成';
     if (remaining > SCENARIO.standardBrakeDistance) return s.distance < SCENARIO.entryDistance
       ? '进站确认：查看LKJ、确认进站黄灯并呼唤，保持适当低牵引'
-      : `进站后以LKJ为主：保持适当低牵引，距出站约 ${exitRemaining.toFixed(0)} m，准备在约 841 m 初减`;
+      : `进站后以LKJ为主：保持适当低牵引，距出站约 ${exitRemaining.toFixed(0)} m，准备在约 ${(SCENARIO.exitSignalDistance - SCENARIO.brakingPoint).toFixed(0)} m 初减`;
     if (!hasInitialBrake) return `LKJ距出站约 ${exitRemaining.toFixed(0)} m：立即实施约 50 kPa 初减压`;
     const firstBrake = s.events.find((event) => event.type === 'brake-application');
     const brakingElapsed = Math.max(0, s.elapsed - (firstBrake?.elapsed || s.elapsed));

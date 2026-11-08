@@ -12,6 +12,32 @@ export function tractionTargetSpeed(notch) {
   return TRACTION_TARGET_SPEEDS[Math.max(0, Math.min(TRACTION_MAX, Math.round(Number(notch) || 0)))] || 0;
 }
 
+// 站场几何与操纵方案分离：后续两段制动可复用同一站台、停车标和信号机。
+export const STATION_GEOMETRY = Object.freeze({
+  startOffset: 28497,
+  platformWorldStart: 29373.7,
+  platformWorldEnd: 29883.7,
+  targetWorldDistance: 29873,
+  exitSignalWorldDistance: 29993,
+});
+
+export const ONE_STAGE_BRAKING_PROFILE = Object.freeze({
+  baselineSpeed: 40,
+  baselineReduction: 50,
+  standardBrakeDistance: 280,
+  speedIncrementDistance: 20,
+  observation30Remaining: 120,
+  observation20Remaining: 50,
+});
+
+const relativeToStart = (worldDistance) => worldDistance - STATION_GEOMETRY.startOffset;
+const targetDistance = relativeToStart(STATION_GEOMETRY.targetWorldDistance);
+const exitSignalDistance = relativeToStart(STATION_GEOMETRY.exitSignalWorldDistance);
+const brakingPoint = targetDistance - ONE_STAGE_BRAKING_PROFILE.standardBrakeDistance;
+const checkPoint = targetDistance - ONE_STAGE_BRAKING_PROFILE.observation30Remaining;
+const lowSpeedPoint = targetDistance - ONE_STAGE_BRAKING_PROFILE.observation20Remaining;
+const finishDistance = targetDistance + 22;
+
 export const SCENARIO = Object.freeze({
   id: 'standardPassenger',
   title: '终到站一段制动精准对标',
@@ -19,24 +45,24 @@ export const SCENARIO = Object.freeze({
   initialSpeed: 40,
   initialTraction: 4,
   operatingGrade: 0,
-  startOffset: 28497,
-  targetDistance: 1103,
-  platformStart: 877,
-  platformEnd: 1187,
-  brakingPoint: 823,
+  startOffset: STATION_GEOMETRY.startOffset,
+  targetDistance,
+  platformStart: relativeToStart(STATION_GEOMETRY.platformWorldStart),
+  platformEnd: relativeToStart(STATION_GEOMETRY.platformWorldEnd),
+  brakingPoint,
   tractionReleaseDelay: 5,
-  checkPoint: 983,
-  lowSpeedPoint: 1053,
-  exitSignalDistance: 1664,
-  finishDistance: 1125,
+  checkPoint,
+  lowSpeedPoint,
+  exitSignalDistance,
+  finishDistance,
   entryDistance: 500,
   maximumEntrySpeed: 45,
-  baselineSpeed: 40,
-  baselineReduction: 50,
-  standardBrakeDistance: 280,
-  speedIncrementDistance: 20,
-  observation30Remaining: 120,
-  observation20Remaining: 50,
+  baselineSpeed: ONE_STAGE_BRAKING_PROFILE.baselineSpeed,
+  baselineReduction: ONE_STAGE_BRAKING_PROFILE.baselineReduction,
+  standardBrakeDistance: ONE_STAGE_BRAKING_PROFILE.standardBrakeDistance,
+  speedIncrementDistance: ONE_STAGE_BRAKING_PROFILE.speedIncrementDistance,
+  observation30Remaining: ONE_STAGE_BRAKING_PROFILE.observation30Remaining,
+  observation20Remaining: ONE_STAGE_BRAKING_PROFILE.observation20Remaining,
   targetTolerance: 0.5,
   passTolerance: 2,
   stationName: '大山铺',
@@ -57,34 +83,34 @@ export const SCENARIO = Object.freeze({
   }),
   lineLimits: Object.freeze([
     Object.freeze({ start: -1_000, end: 500, limit: 80 }),
-    Object.freeze({ start: 500, end: 1_713, limit: 45 }),
+    Object.freeze({ start: 500, end: exitSignalDistance + 49, limit: 45 }),
   ]),
   controlTargets: Object.freeze([
-    Object.freeze({ distance: 1_664, speed: 0, holdUntil: 1_713, serviceDeceleration: 0.56 }),
+    Object.freeze({ distance: exitSignalDistance, speed: 0, holdUntil: exitSignalDistance + 49, serviceDeceleration: 0.56 }),
   ]),
   sourcePlatform: {
-    shape: 'platform-300m-no-awning.s',
+    shape: 'platform-500m.s',
     uid: 50695,
-    worldStart: 29373.7,
-    worldEnd: 29683.7,
+    worldStart: STATION_GEOMETRY.platformWorldStart,
+    worldEnd: STATION_GEOMETRY.platformWorldEnd,
   },
   routeWindow: {
     start: 27900,
     end: 30550,
     lateral: 650,
     entrySignalDistance: 28997,
-    redSignalDistance: 30161,
+    redSignalDistance: STATION_GEOMETRY.exitSignalWorldDistance,
   },
   signals: [
     { id: 'entry', label: '进站信号机', distance: 500, aspect: 'yellow' },
-    { id: 'exit', label: '出站信号机', distance: 1664, aspect: 'redYellow' },
+    { id: 'exit', label: '出站信号机', distance: exitSignalDistance, aspect: 'redYellow' },
   ],
   phases: [
     { id: 'confirm', start: 0, end: 500, label: '进站确认' },
-    { id: 'prepare', start: 500, end: 823, label: '起闸准备' },
-    { id: 'observe', start: 823, end: 983, label: '30 km/h观速' },
-    { id: 'correct', start: 983, end: 1053, label: '20 km/h观速' },
-    { id: 'align', start: 1053, end: 1125, label: '低速对标' },
+    { id: 'prepare', start: 500, end: brakingPoint, label: '起闸准备' },
+    { id: 'observe', start: brakingPoint, end: checkPoint, label: '30 km/h观速' },
+    { id: 'correct', start: checkPoint, end: lowSpeedPoint, label: '20 km/h观速' },
+    { id: 'align', start: lowSpeedPoint, end: finishDistance, label: '低速对标' },
   ],
 });
 

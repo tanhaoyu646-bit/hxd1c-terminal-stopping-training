@@ -1,4 +1,4 @@
-import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-13';
+import { SCENARIO, brakingDistanceForSpeed } from './terminalStoppingConfig.js?v=terminal-station-14';
 
 const between = (value, min, max) => Number.isFinite(value) && value >= min && value <= max;
 const clampScore = (value, maximum) => Math.max(0, Math.min(maximum, Math.round(value)));
@@ -72,7 +72,7 @@ export class TerminalStoppingAssessment {
     if (!release.progressive) preparation -= 2;
     const selectedBrakeDistance = firstBrake ? brakingDistanceForSpeed(firstBrake.speed) : Number.NaN;
     if (!firstBrake || Math.abs(firstBrake.remaining - selectedBrakeDistance) > 20) preparation -= 5;
-    if (!firstBrake || !between(firstBrake.speed, 39, 42)) preparation -= 4;
+    if (!firstBrake || !between(firstBrake.speed, 39, SCENARIO.maximumEntrySpeed)) preparation -= 4;
 
     let brakeUse = 25;
     if (!firstBrake) brakeUse = 0;

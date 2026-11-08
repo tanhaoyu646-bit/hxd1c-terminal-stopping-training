@@ -18,20 +18,21 @@ function runStandard(mode = 'assessment') {
   simulation.start();
   simulation.command('lkj-open');
   simulation.command('callout');
-  let tractionZero = false;
+  let tractionReleased = false;
   let initialBrake = false;
   let secured = false;
   for (let index = 0; index < 40_000 && !simulation.state.completed; index += 1) {
     const state = simulation.state;
-    if (state.distance >= SCENARIO.brakingPoint - 50 && !tractionZero) {
-      simulation.command('traction', 0);
-      tractionZero = true;
-    }
     if (state.distance >= SCENARIO.brakingPoint && !initialBrake) {
       simulation.command('auto-brake', 1);
       simulation.command('side-release', true);
       simulation.command('side-release', false);
       initialBrake = true;
+    }
+    const firstBrake = state.events.find((event) => event.type === 'brake-application');
+    if (firstBrake && !tractionReleased && state.elapsed - firstBrake.elapsed >= SCENARIO.tractionReleaseDelay) {
+      for (const notch of [3, 2, 1, 0]) simulation.command('traction', notch);
+      tractionReleased = true;
     }
     if (state.stopped && !secured) {
       simulation.command('auto-brake', 3);
@@ -55,10 +56,10 @@ test('教学基线采用40公里50千帕280米及30/20公里观速点', () => {
   assert.equal(brakingDistanceForSpeed(41), 300);
   assert.equal(brakingDistanceForSpeed(42), 320);
   assert.deepEqual(trainingBand(120), { target: 30, minimum: 27, maximum: 33 });
-  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.brakingPoint, 841);
-  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.checkPoint, 681);
-  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.lowSpeedPoint, 611);
-  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.targetDistance, 561);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.brakingPoint, 400);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.checkPoint, 240);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.lowSpeedPoint, 170);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.targetDistance, 120);
 });
 
 test('牵引4级给定40公里且达到给定速度后不继续加速', () => {
@@ -80,7 +81,8 @@ test('LKJ在进站信号机处将站内线路限速切换为45公里', () => {
   assert.equal(lkjCurvesAt(SCENARIO.entryDistance - .1).activeLimit, 80);
   assert.equal(lkjCurvesAt(SCENARIO.entryDistance).lineLimit, 45);
   assert.equal(lkjCurvesAt(SCENARIO.entryDistance).activeLimit, 45);
-  assert.equal(lkjCurvesAt(SCENARIO.targetDistance).activeLimit, 45);
+  assert.equal(lkjCurvesAt(SCENARIO.targetDistance).lineLimit, 45);
+  assert.ok(lkjCurvesAt(SCENARIO.targetDistance).activeLimit < 45);
 });
 
 test('正线进站停车使用黄灯且初始位置与进站信号保持足够距离', () => {
@@ -90,7 +92,7 @@ test('正线进站停车使用黄灯且初始位置与进站信号保持足够�
   assert.equal(exit.aspect, 'redYellow');
   assert.ok(entry.distance >= 450);
   assert.equal(SCENARIO.startOffset + entry.distance, SCENARIO.routeWindow.entrySignalDistance);
-  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 29600);
+  assert.equal(SCENARIO.startOffset + SCENARIO.targetDistance, 29873);
 });
 
 test('学员姓名学号校验并仅写入指定会话存储', () => {
@@ -130,7 +132,7 @@ test('教学模式在讲解节点冻结且考评模式不冻结', () => {
   assert.equal(assessment.state.teachingPause, null);
 });
 
-test('既有一段制动基线保持在0.5米内且旧的制动前回零顺序不再满分', () => {
+test('先制动后退牵的一段制动基线在0.5米内并取得满分', () => {
   const simulation = runStandard();
   const result = new TerminalStoppingAssessment(simulation).result();
   assert.equal(simulation.state.completed, true);
@@ -141,8 +143,8 @@ test('既有一段制动基线保持在0.5米内且旧的制动前回零顺序�
   assert.equal(result.secured, true);
   assert.equal(result.redline, false);
   assert.equal(result.qualified, true);
-  assert.equal(result.categories.find((item) => item.name === '制动前准备').score, 9);
-  assert.equal(result.score, 94);
+  assert.equal(result.categories.find((item) => item.name === '制动前准备').score, 15);
+  assert.equal(result.score, 100);
 });
 
 test('旅客列车先制动稳定5秒后逐级退回主手柄才取得退牵满分', () => {
@@ -164,6 +166,20 @@ test('旅客列车先制动稳定5秒后逐级退回主手柄才取得退牵满�
   const wrongResult = new TerminalStoppingAssessment(wrong).result();
   assert.equal(wrongResult.categories.find((item) => item.name === '制动前准备').score, 9);
   assert.equal(new TerminalStoppingAssessment(wrong).progress().checks[2], false);
+});
+
+test('41至45公里按每高1公里提前20米起闸可取得制动准备满分', () => {
+  const simulation = new TerminalStoppingSimulation('assessment');
+  simulation.start();
+  simulation.state.speed = 43;
+  simulation.state.distance = SCENARIO.targetDistance - brakingDistanceForSpeed(43);
+  simulation.command('auto-brake', 1);
+  for (let index = 0; index < 102; index += 1) simulation.tick(.05);
+  for (const notch of [3, 2, 1, 0]) simulation.command('traction', notch);
+  const result = new TerminalStoppingAssessment(simulation).result();
+  assert.equal(result.checkpoints.initialBrakeSpeed, 43);
+  assert.equal(result.checkpoints.initialBrakeRemaining, 340);
+  assert.equal(result.categories.find((item) => item.name === '制动前准备').score, 15);
 });
 
 test('教学模式必须完成末节点讲解和停车防溜后才结束', () => {
@@ -233,12 +249,14 @@ test('单缓只缓解机车制动缸且松手后恢复自动制动作用', () =>
   assert.ok(simulation.state.locomotiveCylinder > duringRelease);
 });
 
-test('停车标位于原大山铺站台有效范围内', () => {
+test('停车标位于原大山铺约500米站台内且距出站信号机120米', () => {
   const targetWorldDistance = SCENARIO.startOffset + SCENARIO.targetDistance;
-  assert.equal(SCENARIO.sourcePlatform.shape, 'platform-300m-no-awning.s');
+  assert.equal(SCENARIO.sourcePlatform.shape, 'platform-500m.s');
   assert.equal(SCENARIO.sourcePlatform.uid, 50695);
+  assert.ok(SCENARIO.sourcePlatform.worldEnd - SCENARIO.sourcePlatform.worldStart >= 500);
   assert.ok(targetWorldDistance >= SCENARIO.sourcePlatform.worldStart);
   assert.ok(targetWorldDistance <= SCENARIO.sourcePlatform.worldEnd);
+  assert.equal(SCENARIO.exitSignalDistance - SCENARIO.targetDistance, 120);
   assert.ok(SCENARIO.routeWindow.start < SCENARIO.startOffset);
   assert.ok(SCENARIO.routeWindow.end > SCENARIO.exitSignalDistance + SCENARIO.startOffset);
 });
@@ -250,7 +268,7 @@ test('终到场景包含原站台和移动端兼容的原地形资产', () => {
   const platform = scene.instances.find((item) => item.uid === SCENARIO.sourcePlatform.uid);
   assert.equal(platform?.shape, SCENARIO.sourcePlatform.shape);
   assert.ok(scene.summary.instanceCount < 1_000, `terminal instances ${scene.summary.instanceCount}`);
-  assert.ok(statSync(sceneUrl).size < 1_500_000, `terminal scene bytes ${statSync(sceneUrl).size}`);
+  assert.ok(statSync(sceneUrl).size < 1_700_000, `terminal scene bytes ${statSync(sceneUrl).size}`);
   assert.equal(terrain.summary.tileCount, 6);
   assert.equal(terrain.summary.resolution, 129);
   assert.equal(terrain.tiles.length, 6);
@@ -345,7 +363,7 @@ test('教学界面采用LKJ起闸距离并保留距停车标辅助值', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const sceneSource = readFileSync(new URL('../scripts/terminalStoppingScene.js', import.meta.url), 'utf8');
   assert.match(html, /id="guide-signal-remaining"/);
-  assert.match(html, /起闸时LKJ距出站约841 m/);
+  assert.match(html, /起闸时LKJ距出站约400 m/);
   assert.match(html, /id="teaching-pause"/);
   assert.match(html, /教学模式只讲解|不生成成绩/);
   assert.match(appSource, /LKJ距\$\{signalName\}/);

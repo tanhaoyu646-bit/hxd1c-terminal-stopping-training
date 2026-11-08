@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-13';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-13';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-13';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-13';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-13';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-13';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-14';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-14';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-14';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-14';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-14';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-14';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-13';
+} from './terminalStoppingCandidate.js?v=terminal-station-14';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -333,8 +333,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-13', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-13', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-14', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-14', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {

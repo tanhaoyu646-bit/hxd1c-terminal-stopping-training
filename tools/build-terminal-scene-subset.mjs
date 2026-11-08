@@ -52,7 +52,11 @@ const instances = scene.instances.filter((instance) => {
     && projection.alongDistance >= WINDOW.start
     && projection.alongDistance <= WINDOW.end
     && projection.lateralDistance <= WINDOW.lateral;
-});
+}).map((instance) => (
+  instance.uid === SCENARIO.sourcePlatform.uid
+    ? { ...instance, shape: SCENARIO.sourcePlatform.shape }
+    : instance
+));
 const shapeNames = new Set(instances.map((instance) => instance.shape));
 const shapes = Object.fromEntries(Object.entries(scene.shapes).filter(([name]) => shapeNames.has(name)));
 const triangleCount = Object.values(shapes).reduce((sum, shape) => (
