@@ -396,6 +396,22 @@ test('手机场景清晰度与途中调速项目使用同一渲染基线', () =>
   assert.match(source, /terrainTexture\.anisotropy = Math\.min\(4,/);
 });
 
+test('右后外部视角以HXD1C司机侧窗作为停车标空间基准', () => {
+  const source = readFileSync(new URL('../scripts/mstsRouteScene.js', import.meta.url), 'utf8');
+  const stoppingScene = readFileSync(new URL('../scripts/terminalStoppingScene.js', import.meta.url), 'utf8');
+  assert.match(source, /bodyLength:\s*21\.885/);
+  assert.match(source, /couplerLength:\s*22\.67/);
+  assert.match(source, /bodyWidth:\s*3\.1/);
+  assert.match(source, /HXD1C_LIGHTWEIGHT_EXTERIOR/);
+  assert.match(source, /HXD1C_DRIVER_RIGHT_WINDOW_REFERENCE/);
+  assert.match(source, /driverWindowLocalZ\s*=\s*0/);
+  assert.match(source, /FIRST_PASSENGER_CAR_BEHIND_DRIVER/);
+  assert.match(source, /rearExternal\s*=\s*this\.view === 'rearLeft' \|\| this\.view === 'rearRight'/);
+  assert.match(source, /this\.view === 'rearRight' \? -1 : 1/);
+  assert.match(source, /locomotiveExterior\.visible = this\.view === 'rearLeft' \|\| this\.view === 'rearRight'/);
+  assert.match(stoppingScene, /scenario\.startOffset \+ scenario\.targetDistance, -3\.25/);
+});
+
 test('教学界面采用LKJ起闸距离并保留距停车标辅助值', () => {
   const appSource = readFileSync(new URL('../scripts/terminalStoppingApp.js', import.meta.url), 'utf8');
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
