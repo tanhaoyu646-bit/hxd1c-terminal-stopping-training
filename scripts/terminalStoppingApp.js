@@ -1,9 +1,9 @@
-import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-15';
-import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-15';
-import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-15';
-import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-15';
-import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-15';
-import { CirRuntime } from './cirRuntime.js?v=terminal-station-15';
+import { CAB, PROJECT_ID, SCENARIO, TRACTION_MAX } from './terminalStoppingConfig.js?v=terminal-station-16';
+import { TerminalStoppingSimulation } from './terminalStoppingSimulation.js?v=terminal-station-16';
+import { TerminalStoppingAssessment } from './terminalStoppingAssessment.js?v=terminal-station-16';
+import { TerminalStoppingScene } from './terminalStoppingScene.js?v=terminal-station-16';
+import { LkjRuntime } from './lkjRuntime.js?v=terminal-station-16';
+import { CirRuntime } from './cirRuntime.js?v=terminal-station-16';
 import {
   clearCandidateDraft,
   createCandidateAttempt,
@@ -11,7 +11,7 @@ import {
   loadCandidateDraft,
   saveCandidateDraft,
   validateCandidate,
-} from './terminalStoppingCandidate.js?v=terminal-station-15';
+} from './terminalStoppingCandidate.js?v=terminal-station-16';
 
 const $ = (selector) => document.querySelector(selector);
 const pct = (value, total) => `${value / total * 100}%`;
@@ -312,7 +312,7 @@ window.addEventListener('pointermove', (event) => {
   const value = clamp(activeDrag.startValue + change, activeDrag.min, activeDrag.max);
   if (value === simulation.state[activeDrag.stateKey]) return;
   activeDrag.moved = true;
-  simulation.command(activeDrag.id === 'auto' ? 'auto-brake' : activeDrag.id === 'independent' ? 'independent-brake' : 'traction', value);
+  simulation.command(activeDrag.id === 'auto' ? 'auto-brake' : activeDrag.id === 'independent' ? 'independent-brake' : 'traction-drag', value);
 }, { passive: false });
 function finishControlDrag(event) {
   if (!activeDrag) {
@@ -333,8 +333,8 @@ let routeWarmPromise = null;
 function warmTerminalAssets() {
   if (routeWarmPromise) return routeWarmPromise;
   const urls = [
-    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-15', import.meta.url),
-    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-15', import.meta.url),
+    new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terminal-scene.json?v=terminal-station-16', import.meta.url),
+    new URL('../assets/msts-neiyi/neiyi-5635-trackdb-path-aligned.json?v=terminal-station-16', import.meta.url),
     new URL('../assets/msts-neiyi-corridor/neiyi-dashanpu-terrain-native.json', import.meta.url),
   ];
   routeWarmPromise = Promise.all(urls.map((url) => fetch(url).then((response) => {

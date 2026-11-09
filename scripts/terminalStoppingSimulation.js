@@ -11,7 +11,7 @@ import {
   signalAt,
   trainingBand,
   tractionTargetSpeed,
-} from './terminalStoppingConfig.js?v=terminal-station-15';
+} from './terminalStoppingConfig.js?v=terminal-station-16';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -89,6 +89,16 @@ export class TerminalStoppingSimulation extends EventTarget {
   command(type, value) {
     const s = this.state;
     if (s.completed) return false;
+    if (type === 'traction-drag') {
+      const target = clamp(Math.round(Number(value) || 0), -DYNAMIC_BRAKE_MAX, TRACTION_MAX);
+      const direction = Math.sign(target - s.traction);
+      if (!direction) return false;
+      let changed = false;
+      for (let notch = s.traction + direction; direction > 0 ? notch <= target : notch >= target; notch += direction) {
+        changed = this.command('traction', notch) || changed;
+      }
+      return changed;
+    }
     if (type === 'teaching-continue') {
       if (s.mode !== 'training' || s.status !== 'teaching-paused' || !s.teachingPause) return false;
       const lessonId = s.teachingPause.id;

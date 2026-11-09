@@ -172,6 +172,22 @@ test('旅客列车先制动稳定5秒后逐级退回主手柄才取得退牵满�
   assert.equal(new TerminalStoppingAssessment(wrong).progress().checks[2], false);
 });
 
+test('操作台快速拖动主手柄仍按经过的每个级位记录退牵', () => {
+  const simulation = new TerminalStoppingSimulation('training');
+  simulation.start();
+  simulation.command('teaching-continue');
+  simulation.state.distance = SCENARIO.brakingPoint;
+  simulation.command('auto-brake', 1);
+  for (let index = 0; index < 102; index += 1) simulation.tick(.05);
+  if (simulation.state.status === 'teaching-paused') simulation.command('teaching-continue');
+  simulation.command('traction-drag', 0);
+  const reductions = simulation.state.events
+    .filter((event) => event.type === 'traction')
+    .map((event) => event.value);
+  assert.deepEqual(reductions.slice(-4), [3, 2, 1, 0]);
+  assert.equal(new TerminalStoppingAssessment(simulation).progress().checks[2], true);
+});
+
 test('41至45公里按每高1公里提前20米起闸可取得制动准备满分', () => {
   const simulation = new TerminalStoppingSimulation('assessment');
   simulation.start();
